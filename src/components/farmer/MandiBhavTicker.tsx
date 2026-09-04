@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { TrendingUp, Coins, Clock, Sparkles } from 'lucide-react';
 import { useTranslation } from '../../i18n/useTranslation';
 import { socketService } from '../../services/socketService';
+import { getApiUrl } from '../../utils/api';
 
 export interface LiveCropRate {
   id: string;
@@ -65,7 +66,7 @@ export const MandiBhavTicker: React.FC = () => {
   // 1. Fetch current dynamic rates from backend API
   const fetchRates = async () => {
     try {
-      const res = await fetch('/api/rates');
+      const res = await fetch(getApiUrl('/api/rates'));
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.rates) && data.rates.length > 0) {

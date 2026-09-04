@@ -18,13 +18,15 @@ class SocketService {
       return this.socket;
     }
 
-    // Connect to backend server on port 5001 or current host
-    const socketUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
+    // Connect to backend server on port 5001 or configured Render production URL
+    const rawBackendUrl = import.meta.env.VITE_BACKEND_URL;
+    const socketUrl = rawBackendUrl ? rawBackendUrl.trim().replace(/\/+$/, '') : 'http://localhost:5001';
     
     this.socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
-      reconnectionDelay: 1000
+      reconnectionDelay: 1000,
+      withCredentials: true
     });
 
     this.socket.on('connect', () => {

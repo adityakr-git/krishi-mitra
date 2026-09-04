@@ -13,6 +13,7 @@ import { useProcurementStore } from '../../store/useProcurementStore';
 import { Language } from '../../types';
 import { initRecaptchaVerifier, sendFirebaseOtp } from '../../config/firebase';
 import { ConfirmationResult, RecaptchaVerifier } from 'firebase/auth';
+import { getApiUrl } from '../../utils/api';
 
 interface LoginViewProps {
   onLoginSuccess: (user: UserProfile) => void;
@@ -126,7 +127,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
       // Step 2: Post to backend API /api/auth/verify to check/provision user in DB
       let backendUser: UserProfile | null = null;
       try {
-        const res = await fetch('/api/auth/verify', {
+        const res = await fetch(getApiUrl('/api/auth/verify'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone, firebaseUid })

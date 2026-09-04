@@ -20,6 +20,7 @@ import confetti from 'canvas-confetti';
 import { useProcurementStore } from '../../store/useProcurementStore';
 import { getTranslation } from '../../i18n/translations';
 import { Token } from '../../types';
+import { getApiUrl } from '../../utils/api';
 
 export const OfficerDashboard: React.FC = () => {
   const { 
@@ -66,7 +67,7 @@ export const OfficerDashboard: React.FC = () => {
 
     // 2. Call backend PUT /api/queue/next to advance database and emit Socket.io broadcast
     try {
-      await fetch('/api/queue/next', {
+      await fetch(getApiUrl('/api/queue/next'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mandiId: activeMandi.id })

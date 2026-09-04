@@ -23,6 +23,7 @@ import {
 import { useProcurementStore } from '../../store/useProcurementStore';
 import { getTranslation } from '../../i18n/translations';
 import { MandiMap } from '../shared/MandiMap';
+import { getApiUrl } from '../../utils/api';
 
 interface CropRateItem {
   id: string;
@@ -66,7 +67,7 @@ export const AdminDashboard: React.FC = () => {
   // Fetch current rates
   const fetchLiveRates = async () => {
     try {
-      const res = await fetch('/api/rates');
+      const res = await fetch(getApiUrl('/api/rates'));
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.rates)) {
@@ -117,7 +118,7 @@ export const AdminDashboard: React.FC = () => {
     setRateLoading(true);
 
     try {
-      const res = await fetch('/api/rates/update', {
+      const res = await fetch(getApiUrl('/api/rates/update'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
