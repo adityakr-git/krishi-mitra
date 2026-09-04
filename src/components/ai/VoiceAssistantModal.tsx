@@ -35,6 +35,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
 
   const { activeToken } = useProcurementStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const speechDebounceRef = useRef<any>(null);
 
   // Auto scroll messages to bottom
   useEffect(() => {
@@ -42,19 +43,44 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   }, [messages, isOpen]);
 
   // Robust Krishi Voice Hook
-  const { isListening, startListening, speak } = useKrishiVoice((transcript) => {
-    // This runs when the farmer finishes speaking
+  const { isListening, startListening, stopListening, speak } = useKrishiVoice((transcript) => {
+    // Stream real-time text directly into the input box
     setInputText(transcript);
-    handleSendMessage(transcript);
+
+    // Auto-send query after 1.5 seconds of silence for seamless hands-free farmer experience
+    if (speechDebounceRef.current) {
+      clearTimeout(speechDebounceRef.current);
+    }
+    speechDebounceRef.current = setTimeout(() => {
+      if (transcript.trim()) {
+        handleSendMessage(transcript);
+        setInputText('');
+        stopListening();
+      }
+    }, 1500);
   });
 
-  // Auto-start listening if modal opened via Voice Help button
+  // Cleanup speech recognition and timers on modal close/unmount
   useEffect(() => {
-    if (isOpen && autoStart) {
+    if (!isOpen) {
+      if (speechDebounceRef.current) clearTimeout(speechDebounceRef.current);
+      stopListening();
+    }
+  }, [isOpen, stopListening]);
+
+  const hasAutoStartedRef = useRef(false);
+
+  // Auto-start listening once when modal opened via Voice Help button
+  useEffect(() => {
+    if (isOpen && autoStart && !hasAutoStartedRef.current) {
+      hasAutoStartedRef.current = true;
       const timer = setTimeout(() => {
         startListening();
       }, 500);
       return () => clearTimeout(timer);
+    }
+    if (!isOpen) {
+      hasAutoStartedRef.current = false;
     }
   }, [isOpen, autoStart, startListening]);
 
@@ -225,7 +251,14 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    if (!isListening) {
+                    if (isListening) {
+                      if (speechDebounceRef.current) clearTimeout(speechDebounceRef.current);
+                      stopListening();
+                      if (inputText.trim()) {
+                        handleSendMessage(inputText);
+                        setInputText('');
+                      }
+                    } else {
                       startListening();
                     }
                   }}
@@ -234,7 +267,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                       ? 'bg-red-600 text-white ring-4 ring-red-200 animate-pulse'
                       : 'bg-forest text-white hover:bg-forest-light'
                   }`}
-                  title={isListening ? 'माइक चालू है... सुन रहा हूँ' : 'बोलने के लिए माइक दबाएं'}
+                  title={isListening ? 'माइक चालू है... रोकने या भेजने के लिए दबाएं' : 'बोलने के लिए माइक दबाएं'}
                 >
                   {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                 </button>

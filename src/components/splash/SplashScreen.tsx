@@ -1,56 +1,79 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { motion } from 'framer-motion';
 
 interface SplashScreenProps {
-  onFinish: () => void;
+  onComplete?: () => void;
+  onFinish?: () => void;
 }
 
-export const SplashScreen: React.FC<SplashScreenProps> = ({ onFinish }) => {
-  const [isFadingOut, setIsFadingOut] = useState(false);
+export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete, onFinish }) => {
+  const handleDone = onComplete || onFinish;
 
   useEffect(() => {
-    // Start fade out at 2.4s
-    const fadeTimer = setTimeout(() => {
-      setIsFadingOut(true);
-    }, 2400);
-
-    // Completely finish and route to login after 2.8s
-    const exitTimer = setTimeout(() => {
-      onFinish();
-    }, 2800);
-
-    return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(exitTimer);
-    };
-  }, [onFinish]);
+    const timer = setTimeout(() => {
+      if (handleDone) {
+        handleDone();
+      } else if (typeof window !== 'undefined') {
+        window.location.href = '/login'; 
+      }
+    }, 3500); // 3.5 seconds total duration
+    return () => clearTimeout(timer);
+  }, [handleDone]);
 
   return (
-    <div 
-      className={`fixed inset-0 z-50 w-screen h-screen bg-white flex flex-col items-center justify-center transition-opacity duration-500 selection:bg-transparent ${
-        isFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
-      }`}
-    >
-      {/* Centered Animated Brand Logo Container */}
-      <div className="flex flex-col items-center justify-center p-6 text-center max-w-sm w-full">
-        
-        {/* Animated Custom Logo with Smooth Scale, Fade-in, and Floating Glow */}
-        <div className="animate-splash-logo relative flex items-center justify-center">
-          <img
-            src="/krishi-mitra-logo.png"
-            alt="Krishi Mitra Logo"
-            className="w-52 sm:w-64 h-auto object-contain select-none"
-            draggable={false}
-          />
-        </div>
+    <div className="flex flex-col items-center justify-center h-screen w-screen bg-white overflow-hidden fixed inset-0 z-50 selection:bg-transparent">
+      
+      {/* 
+        Animation Sequence:
+        1. Fades in and slides up slightly (0s to 0.8s)
+        2. Performs a gentle "Handshake" wobble (0.8s to 2.5s)
+      */}
+      <motion.div
+        initial={{ opacity: 0, y: 30, scale: 0.9 }}
+        animate={{ 
+          opacity: 1, 
+          y: 0, 
+          scale: 1,
+          rotate: [0, -4, 4, -3, 3, -1, 1, 0] // The Handshake Wobble
+        }}
+        transition={{
+          // Entry animation
+          opacity: { duration: 0.8, ease: "easeOut" },
+          y: { duration: 0.8, type: "spring", bounce: 0.4 },
+          scale: { duration: 0.8, ease: "easeOut" },
+          // Handshake animation (Starts after entry)
+          rotate: { 
+            delay: 0.8, 
+            duration: 1.5, 
+            ease: "easeInOut",
+            repeat: 0
+          }
+        }}
+        style={{ originX: 0.5, originY: 1 }} // Anchors the animation at the bottom (wrist)
+        className="flex flex-col items-center"
+      >
+        <img 
+          src="/krishi-mitra-logo.png" 
+          alt="Krishi Mitra - Saathi Har Kisan Ka" 
+          className="w-56 sm:w-64 h-auto drop-shadow-xl select-none"
+          draggable={false}
+        />
+      </motion.div>
 
-        {/* Minimal loading indicator dots at bottom */}
-        <div className="mt-8 flex items-center gap-1.5 opacity-60">
-          <span className="w-2 h-2 rounded-full bg-forest animate-pulse" />
-          <span className="w-2 h-2 rounded-full bg-forest-accent animate-pulse delay-150" />
-          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse delay-300" />
-        </div>
-
-      </div>
+      {/* Animated Text appearing after logo */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.8, duration: 0.8 }}
+        className="mt-8 text-center"
+      >
+        <p className="text-green-700 font-medium text-lg tracking-widest animate-pulse">
+          Connecting...
+        </p>
+      </motion.div>
+      
     </div>
   );
 };
+
+export default SplashScreen;

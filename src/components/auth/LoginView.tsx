@@ -58,14 +58,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     setLoading(true);
 
     try {
-      // Initialize reCAPTCHA on DOM element
+      // Initialize invisible reCAPTCHA on DOM element
       let verifier = recaptchaVerifierRef.current;
       if (!verifier) {
         verifier = initRecaptchaVerifier('recaptcha-container');
         recaptchaVerifierRef.current = verifier;
       }
 
-      // Trigger Firebase Phone Auth
+      // Trigger real Firebase Phone Auth SMS dispatch
       const result = await sendFirebaseOtp(cleanPhone, verifier);
 
       if (result.success && result.confirmationResult) {
@@ -74,17 +74,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         setTimer(30);
         setCanResend(false);
       } else {
-        // Fallback for development sandbox if live SMS gateway is not configured
-        console.warn('[Firebase Auth] Falling back to development OTP sandbox');
-        setStep('OTP');
-        setTimer(30);
-        setCanResend(false);
+        setErrorMessage(result.error || 'SMS भेजने में त्रुटि हुई। कृपया पुनः प्रयास करें।');
+        // Reset verifier so farmer can retry
+        recaptchaVerifierRef.current = null;
       }
     } catch (err: any) {
-      console.warn('[Firebase Auth] Error initializing verifier, using sandbox:', err);
-      setStep('OTP');
-      setTimer(30);
-      setCanResend(false);
+      console.error('[Firebase Auth] Error sending OTP:', err);
+      setErrorMessage(err.message || 'SMS भेजने में असमर्थ। कृपया नेटवर्क जांचें।');
+      recaptchaVerifierRef.current = null;
     } finally {
       setLoading(false);
     }
@@ -102,23 +99,31 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     setLoading(true);
 
     try {
-      // Step 1: If Firebase confirmation is active, verify Firebase token
-      let firebaseUid: string | undefined;
-      if (confirmationResultRef.current) {
-        try {
-          const userCredential = await confirmationResultRef.current.confirm(otp);
-          firebaseUid = userCredential.user.uid;
-        } catch {
-          // Allow sandbox OTP '123456' for local testing
-          if (otp !== '123456') {
-            setErrorMessage('Invalid OTP code entered. Please try again or use 123456.');
-            setLoading(false);
-            return;
-          }
-        }
+      if (!confirmationResultRef.current) {
+        setErrorMessage('सत्र समाप्त हो गया है। कृपया OTP दोबारा मंगाएं। (Session expired. Please request a new OTP)');
+        setLoading(false);
+        return;
       }
 
-      // Step 2: Post to backend API /api/auth/verify to check PostgreSQL DB role
+      // Step 1: Verify real Firebase SMS OTP token
+      let firebaseUid: string | undefined;
+      try {
+        const userCredential = await confirmationResultRef.current.confirm(otp);
+        firebaseUid = userCredential.user.uid;
+      } catch (fbErr: any) {
+        console.error('[Firebase Auth] OTP Confirm Error:', fbErr);
+        if (fbErr.code === 'auth/invalid-verification-code') {
+          setErrorMessage('गलत OTP कोड है। कृपया SMS में आया सही 6-अंकीय कोड दर्ज करें। (Invalid OTP code)');
+        } else if (fbErr.code === 'auth/code-expired') {
+          setErrorMessage('यह OTP समाप्त हो चुका है। कृपया "Resend OTP" दबाएं। (OTP code expired)');
+        } else {
+          setErrorMessage(fbErr.message || 'OTP सत्यापन विफल रहा। कृपया सही कोड दर्ज करें।');
+        }
+        setLoading(false);
+        return;
+      }
+
+      // Step 2: Post to backend API /api/auth/verify to check/provision user in DB
       let backendUser: UserProfile | null = null;
       try {
         const res = await fetch('/api/auth/verify', {
@@ -134,12 +139,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           }
         }
       } catch (err) {
-        console.warn('[Backend Auth] API unreachable, using local fallback:', err);
+        console.warn('[Backend Auth] API unreachable, using verified local session:', err);
       }
 
-      // Fallback to authService local store if backend call failed
+      // Fallback to verified session creation if backend was temporarily unreachable
       if (!backendUser) {
-        const localRes = authService.verifyOtp(phone, otp);
+        const localRes = authService.createVerifiedSession(phone, firebaseUid);
         if (localRes.success && localRes.user) {
           backendUser = localRes.user;
         }
@@ -149,10 +154,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         login(backendUser);
         onLoginSuccess(backendUser);
       } else {
-        setErrorMessage('Authentication failed. Please verify your OTP code.');
+        setErrorMessage('प्रमाणीकरण विफल रहा। (Authentication failed)');
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Verification error occurred.');
+      setErrorMessage(err.message || 'सत्यापन में त्रुटि हुई।');
     } finally {
       setLoading(false);
     }
@@ -324,11 +329,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 placeholder="• • • • • •"
                 className="w-full tracking-widest text-center text-2xl font-black bg-soil-50 border border-slate-200 text-slate-900 rounded-2xl py-3 focus:outline-none focus:ring-2 focus:ring-forest focus:bg-white transition-all"
               />
-              {isDevelopment && (
-                <span className="block text-[11px] text-slate-400 mt-1 text-center">
-                  (Test OTP: <strong>123456</strong>)
-                </span>
-              )}
+              <span className="block text-[11px] text-slate-400 mt-1.5 text-center">
+                आपके मोबाइल पर 6 अंकों का SMS कोड भेजा गया है (Enter SMS Code)
+              </span>
             </div>
 
             {errorMessage && (

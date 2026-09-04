@@ -34,6 +34,22 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({ isOpen, onClose, o
   } = useProcurementStore();
 
   const [muted, setMuted] = useState(getGlobalMute());
+  const [profilePic, setProfilePic] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    const updatePic = () => {
+      const saved = localStorage.getItem('krishi_mitra_profile_pic');
+      setProfilePic(saved);
+    };
+    updatePic();
+
+    window.addEventListener('krishi_mitra_profile_updated', updatePic);
+    window.addEventListener('storage', updatePic);
+    return () => {
+      window.removeEventListener('krishi_mitra_profile_updated', updatePic);
+      window.removeEventListener('storage', updatePic);
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -51,8 +67,12 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({ isOpen, onClose, o
         <div>
           <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-soil-50">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-forest text-forest-pale flex items-center justify-center font-bold text-xs">
-                {user?.name?.slice(0, 2).toUpperCase() || 'KM'}
+              <div className="w-9 h-9 rounded-full bg-forest text-forest-pale flex items-center justify-center font-bold text-xs overflow-hidden border border-forest-accent/30 shadow-sm">
+                {profilePic ? (
+                  <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  user?.name?.slice(0, 2).toUpperCase() || 'KM'
+                )}
               </div>
               <div>
                 <h3 className="font-bold text-sm text-slate-900">{user?.name}</h3>

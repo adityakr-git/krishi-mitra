@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, 
   Phone, 
@@ -10,11 +10,14 @@ import {
   LogOut,
   MapPin,
   CheckCircle2,
-  FileCheck
+  FileCheck,
+  Camera,
+  PhoneCall
 } from 'lucide-react';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useProcurementStore } from '../../../store/useProcurementStore';
 import { useTranslation } from '../../../i18n/useTranslation';
+import { LanguageSwitcher } from '../../common/LanguageSwitcher';
 
 export const ProfileTab: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -25,14 +28,44 @@ export const ProfileTab: React.FC = () => {
     toggleLargeFont 
   } = useProcurementStore();
 
-  const { language, toggleLanguage } = useTranslation();
+  const { t, language } = useTranslation();
 
   const farmerName = user?.name || 'Ramesh Kumar';
   const farmerPhone = user?.phone || '9876543210';
   const kisanId = user?.kisanId || 'HR-GUR-2024-8841';
 
+  const [profilePic, setProfilePic] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load saved profile pic on mount
+  useEffect(() => {
+    const savedPic = localStorage.getItem('krishi_mitra_profile_pic');
+    if (savedPic) {
+      setProfilePic(savedPic);
+    }
+  }, []);
+
+  // Handle Image Selection and Convert to Base64 for LocalStorage
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setProfilePic(base64String);
+        localStorage.setItem('krishi_mitra_profile_pic', base64String);
+        window.dispatchEvent(new Event('krishi_mitra_profile_updated'));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-4 animate-fade-in mb-24">
       
       {/* Header */}
       <div className="px-1">
@@ -44,22 +77,51 @@ export const ProfileTab: React.FC = () => {
         </p>
       </div>
 
-      {/* Main Farmer Identity Card */}
+      {/* Main Farmer Identity Card with Avatar Upload */}
       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-14 h-14 rounded-2xl bg-forest text-forest-pale font-black text-xl flex items-center justify-center shadow-md border-2 border-forest-accent/30 shrink-0">
-            {farmerName.slice(0, 2).toUpperCase()}
+        
+        {/* Profile Picture Section */}
+        <div className="flex flex-col items-center pt-2">
+          <div className="relative">
+            {/* Avatar Image */}
+            <div className="w-28 h-28 rounded-full border-4 border-forest overflow-hidden bg-slate-100 flex items-center justify-center shadow-lg">
+              {profilePic ? (
+                <img src={profilePic} alt="Farmer Profile" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-3xl text-slate-400 font-black">
+                  {farmerName.slice(0, 2).toUpperCase()}
+                </span>
+              )}
+            </div>
+            
+            {/* Edit/Camera Button */}
+            <button 
+              type="button"
+              onClick={triggerFileInput}
+              title="फ़ोटो बदलें (Change Photo)"
+              className="absolute bottom-0 right-0 bg-forest text-white p-2.5 rounded-full shadow-md hover:bg-forest-light transition-colors border-2 border-white active:scale-95 cursor-pointer"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
           </div>
-          <div className="space-y-0.5">
-            <h2 className="text-base font-extrabold text-slate-900">{farmerName}</h2>
-            <span className="text-xs text-slate-500 flex items-center gap-1">
-              <Phone className="w-3.5 h-3.5 text-slate-400" /> +91 {farmerPhone}
-            </span>
-            <span className="text-[11px] font-bold text-forest flex items-center gap-1">
-              <MapPin className="w-3 h-3 text-forest-accent" /> {user?.village || 'Khandsa, Gurugram'}
-            </span>
-          </div>
+          
+          <h2 className="text-xl font-bold mt-4 text-slate-900 text-center">{farmerName}</h2>
+          <p className="text-slate-500 text-xs flex items-center gap-1 mt-0.5">
+            <Phone className="w-3.5 h-3.5 text-slate-400" /> +91 {farmerPhone}
+          </p>
+          <span className="text-[11px] font-bold text-forest flex items-center gap-1 mt-1">
+            <MapPin className="w-3.5 h-3.5 text-forest-accent" /> {user?.village || 'Khandsa, Gurugram'}
+          </span>
         </div>
+
+        {/* Hidden File Input */}
+        <input 
+          type="file" 
+          accept="image/*" 
+          ref={fileInputRef} 
+          onChange={handleImageChange} 
+          className="hidden" 
+        />
 
         <div className="p-3 bg-soil-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs">
           <div>
@@ -116,10 +178,35 @@ export const ProfileTab: React.FC = () => {
         </div>
       </div>
 
-      {/* Language Switcher Card */}
+      {/* Kisan Helpline: Help & Support (Toll-Free 1800-180-1551) */}
+      <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-200">
+        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+          {language === 'hi' ? 'सहायता और संपर्क (Help & Support)' : 'Help & Support'}
+        </h3>
+        
+        <a 
+          href="tel:18001801551" 
+          className="w-full bg-red-50 hover:bg-red-100/80 border border-red-200 rounded-2xl p-4 flex items-center justify-between active:scale-95 transition-transform group shadow-2xs"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="bg-red-100 text-red-600 p-3 rounded-2xl group-hover:scale-105 transition-transform">
+              <PhoneCall size={24} />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-red-700 text-base leading-tight">किसान कॉल सेंटर</h4>
+              <p className="text-red-600/80 text-xs font-semibold">मुफ़्त कृषि सलाह (Toll-Free)</p>
+            </div>
+          </div>
+          <div className="text-red-700 font-extrabold text-xs sm:text-sm tracking-wider font-mono bg-white px-2.5 py-1.5 rounded-xl border border-red-200 shadow-2xs">
+            1800-180-1551
+          </div>
+        </a>
+      </div>
+
+      {/* Language Switcher Card (5 Indian Regional Languages) */}
       <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-200 space-y-3">
         <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-          {language === 'hi' ? 'भाषा चयन (Language)' : 'App Language'}
+          {t('change_language')}
         </h3>
 
         <div className="flex items-center justify-between p-3 bg-soil-50 rounded-2xl border border-slate-100">
@@ -127,22 +214,15 @@ export const ProfileTab: React.FC = () => {
             <Languages className="w-5 h-5 text-forest" />
             <div>
               <strong className="text-xs text-slate-900 block">
-                {language === 'hi' ? 'वर्तमान भाषा: हिन्दी' : 'Active Language: English'}
+                Regional Language / क्षेत्रीय भाषा
               </strong>
               <span className="text-[10px] text-slate-400">
-                {language === 'hi' ? 'अंग्रेजी में बदलने के लिए टैप करें' : 'Tap to switch to Hindi'}
+                5 Languages available in native script
               </span>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={toggleLanguage}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-forest text-white text-xs font-black shadow-sm transition-all active:scale-95"
-          >
-            <span>A/अ</span>
-            <span>{language === 'hi' ? 'English' : 'हिन्दी'}</span>
-          </button>
+          <LanguageSwitcher />
         </div>
       </div>
 

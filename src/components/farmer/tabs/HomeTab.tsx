@@ -53,7 +53,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
       <div className="flex items-center justify-between px-1">
         <div>
           <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-            {t('greeting')}, {farmerName} {language === 'hi' ? 'जी' : 'ji'}
+            {t('welcome', { name: farmerName })}
           </h1>
           <p className="text-xs text-slate-500 font-medium">
             {t('todays_status')}
@@ -66,20 +66,20 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             type="button"
             onClick={handleScrollToPass}
             className="flex items-center gap-1.5 bg-forest-pale text-forest hover:bg-forest hover:text-white font-extrabold text-xs px-3.5 py-2 rounded-2xl border border-forest-accent/40 shadow-xs transition-all active:scale-95"
-            title={language === 'hi' ? 'डिजिटल पास देखें' : 'View Digital Pass'}
+            title={t('digital_pass')}
           >
             <Ticket className="w-4 h-4 text-forest-accent" />
-            <span>{language === 'hi' ? 'पास देखें' : 'View Pass'}</span>
+            <span>{t('digital_pass')}</span>
           </button>
         ) : (
           <button
             type="button"
             onClick={onOpenBookModal}
             className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-black text-xs px-4 py-2.5 rounded-2xl shadow-md transition-all animate-pulse-subtle"
-            title={language === 'hi' ? 'नया मंडी स्लॉट बुक करें' : 'Book a new mandi slot'}
+            title={t('book_slot')}
           >
             <Plus className="w-4 h-4 stroke-[3]" />
-            <span>{language === 'hi' ? '+ स्लॉट बुक करें' : '+ Book Slot'}</span>
+            <span>+ {t('book_slot')}</span>
           </button>
         )}
       </div>

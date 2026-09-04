@@ -8,12 +8,13 @@ import {
 
 // Standard Firebase Configuration via environment variables
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyDummyKeyForKrishiMitraGovProcurement2026",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "krishi-mitra-gov.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "krishi-mitra-gov",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "krishi-mitra-gov.appspot.com",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789012",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123456789012:web:abcdef1234567890"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Singleton Firebase initialization
@@ -23,20 +24,21 @@ export const auth = getAuth(app);
 let recaptchaVerifier: RecaptchaVerifier | null = null;
 
 /**
- * Initializes invisible or visible reCAPTCHA on the given DOM element
+ * Initializes invisible reCAPTCHA on the given DOM element
  */
 export function initRecaptchaVerifier(elementId: string): RecaptchaVerifier {
   if (typeof window === 'undefined') {
     throw new Error('Window not available for reCAPTCHA');
   }
 
-  // Clear existing verifier if any
+  // Clear existing verifier if any to prevent duplicate widgets
   if (recaptchaVerifier) {
     try {
       recaptchaVerifier.clear();
     } catch {
       // Ignore
     }
+    recaptchaVerifier = null;
   }
 
   recaptchaVerifier = new RecaptchaVerifier(auth, elementId, {
@@ -45,7 +47,7 @@ export function initRecaptchaVerifier(elementId: string): RecaptchaVerifier {
       console.log('[Firebase Auth] reCAPTCHA verified successfully');
     },
     'expired-callback': () => {
-      console.warn('[Firebase Auth] reCAPTCHA expired. Prompting refresh.');
+      console.warn('[Firebase Auth] reCAPTCHA expired. Refreshing.');
     }
   });
 
@@ -53,18 +55,29 @@ export function initRecaptchaVerifier(elementId: string): RecaptchaVerifier {
 }
 
 /**
- * Sends OTP via Firebase Phone Auth
+ * Sends real SMS OTP via Firebase Phone Auth
  */
 export async function sendFirebaseOtp(
   phone: string, 
   verifier: RecaptchaVerifier
 ): Promise<{ success: boolean; confirmationResult?: ConfirmationResult; error?: string }> {
   try {
-    const formattedPhone = phone.startsWith('+') ? phone : `+91${phone.replace(/\D/g, '')}`;
+    const cleanDigits = phone.replace(/\D/g, '');
+    const formattedPhone = phone.startsWith('+') ? phone : `+91${cleanDigits}`;
     const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, verifier);
     return { success: true, confirmationResult };
   } catch (error: any) {
     console.error('[Firebase Auth] Error sending phone OTP:', error);
-    return { success: false, error: error.message || 'Failed to send OTP via SMS gateway' };
+    let errorMsg = error.message || 'Failed to send OTP via SMS gateway';
+    if (error.code === 'auth/invalid-phone-number') {
+      errorMsg = 'कृपया सही 10-अंकीय मोबाइल नंबर दर्ज करें (Invalid phone number)';
+    } else if (error.code === 'auth/too-many-requests') {
+      errorMsg = 'अत्यधिक प्रयास किए गए हैं। कृपया कुछ समय बाद पुनः प्रयास करें (Too many requests. Try later)';
+    } else if (error.code === 'auth/quota-exceeded') {
+      errorMsg = 'SMS कोटा समाप्त हो गया है। कृपया बाद में प्रयास करें (SMS quota exceeded)';
+    } else if (error.code === 'auth/captcha-check-failed') {
+      errorMsg = 'reCAPTCHA सत्यापन विफल रहा। कृपया पृष्ठ रिफ्रेश करें (reCAPTCHA check failed)';
+    }
+    return { success: false, error: errorMsg };
   }
 }

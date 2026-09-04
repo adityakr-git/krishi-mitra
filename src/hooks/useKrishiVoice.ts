@@ -1,50 +1,43 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
-/**
- * useKrishiVoice Hook
- * Manages asynchronous voice loading, sanitized Hindi TTS output,
- * and robust Speech-to-Text via Web Speech Recognition API.
- */
 export const useKrishiVoice = (onTextCaptured?: (text: string) => void) => {
   const [isListening, setIsListening] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const recognitionRef = useRef<any>(null); // Prevents infinite loops across re-renders
+  const onTextCapturedRef = useRef(onTextCaptured);
 
-  // 1. Load Voices Asynchronously (Fixes the TTS issue in Chrome/Safari)
+  useEffect(() => {
+    onTextCapturedRef.current = onTextCaptured;
+  }, [onTextCaptured]);
+
+  // Load TTS Voices
   useEffect(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-
     const loadVoices = () => {
       const availableVoices = window.speechSynthesis.getVoices();
       if (availableVoices.length > 0) {
         setVoices(availableVoices);
       }
     };
-    
     loadVoices();
     if (window.speechSynthesis.onvoiceschanged !== undefined) {
       window.speechSynthesis.onvoiceschanged = loadVoices;
     }
   }, []);
 
-  // 2. Text to Speech (Sanitized for Hindi phonetics)
+  // Text-to-Speech
   const speak = useCallback((text: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-    
-    window.speechSynthesis.cancel(); // Stop any ongoing speech
-    
-    // Sanitize text (remove # and symbols that break Hindi TTS engines)
+    window.speechSynthesis.cancel();
     const sanitizedText = text
       .replace(/#/g, '')
       .replace(/-/g, ' ')
       .replace(/₹/g, 'रुपये ')
       .replace(/[*_~`]/g, '');
-    
     const utterance = new SpeechSynthesisUtterance(sanitizedText);
     utterance.lang = 'hi-IN';
-    utterance.rate = 0.9; // Slightly slower for farmers to understand clearly
-    utterance.pitch = 1.0;
+    utterance.rate = 0.9;
     
-    // Try to set a Hindi voice if available
     const availableVoices = voices.length > 0 ? voices : window.speechSynthesis.getVoices();
     const hindiVoice = availableVoices.find(v => 
       v.lang.includes('hi-IN') || 
@@ -52,52 +45,82 @@ export const useKrishiVoice = (onTextCaptured?: (text: string) => void) => {
       v.lang.toLowerCase() === 'hi' ||
       v.name.toLowerCase().includes('hindi')
     );
-
-    if (hindiVoice) {
-      utterance.voice = hindiVoice;
-    }
+    if (hindiVoice) utterance.voice = hindiVoice;
     
     window.speechSynthesis.speak(utterance);
   }, [voices]);
 
-  // 3. Speech to Text (Mic Input)
-  const startListening = useCallback(() => {
-    if (typeof window === 'undefined') return;
+  // Stop recognition manually
+  const stopListening = useCallback(() => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        console.error("Failed to stop recognition:", e);
+      }
+    }
+    setIsListening(false);
+  }, []);
 
+  // Speech-to-Text (Mic Input)
+  const startListening = useCallback(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
     if (!SpeechRecognition) {
-      alert("आपका ब्राउज़र वॉइस सपोर्ट नहीं करता। कृपया Google Chrome का इस्तेमाल करें।");
+      console.error("Browser does not support Speech Recognition.");
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'hi-IN';
-    recognition.continuous = false;
-    recognition.interimResults = false;
+    // Stop any existing instance before starting a new one
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        // ignore
+      }
+    }
 
-    recognition.onstart = () => setIsListening(true);
-    
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition; // Store in ref to survive re-renders
+
+    recognition.lang = 'hi-IN';
+    recognition.continuous = false; // MUST BE FALSE to prevent rapid on/off toggling loops
+    recognition.interimResults = true;
+
+    recognition.onstart = () => {
+      console.log("Mic started");
+      setIsListening(true);
+    };
+
     recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      if (onTextCaptured) {
-        onTextCaptured(transcript); // Send text back to component
+      let currentText = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        currentText += event.results[i][0].transcript;
+      }
+      if (onTextCapturedRef.current && currentText) {
+        onTextCapturedRef.current(currentText);
       }
     };
 
     recognition.onerror = (event: any) => {
       console.error("Mic error:", event.error);
       setIsListening(false);
+      // REMOVED ALERTS: Alerts block the main thread and cause UI freezes.
+      // The network error usually happens if the user is on Brave Browser.
     };
 
-    recognition.onend = () => setIsListening(false);
-    
+    recognition.onend = () => {
+      console.log("Mic ended naturally");
+      setIsListening(false);
+    };
+
     try {
       recognition.start();
-    } catch (err) {
-      console.warn("Speech recognition already running or failed to start:", err);
+    } catch (e) {
+      console.error("Failed to start recognition:", e);
       setIsListening(false);
     }
-  }, [onTextCaptured]);
+  }, []);
 
-  return { isListening, startListening, speak };
+  return { isListening, startListening, stopListening, speak };
 };

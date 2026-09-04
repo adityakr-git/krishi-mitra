@@ -2,11 +2,13 @@ import React from 'react';
 import { 
   Sprout, 
   Bell, 
-  User 
+  User,
+  PhoneCall 
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useProcurementStore } from '../../store/useProcurementStore';
 import { useTranslation } from '../../i18n/useTranslation';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 interface HeaderProps {
   onOpenNotifications: () => void;
@@ -22,6 +24,22 @@ export const Header: React.FC<HeaderProps> = ({
   const { language, toggleLanguage, t } = useTranslation();
 
   const unreadCount = notifications.filter(n => !n.read).length;
+  const [profilePic, setProfilePic] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const updatePic = () => {
+      const saved = localStorage.getItem('krishi_mitra_profile_pic');
+      setProfilePic(saved);
+    };
+    updatePic();
+
+    window.addEventListener('krishi_mitra_profile_updated', updatePic);
+    window.addEventListener('storage', updatePic);
+    return () => {
+      window.removeEventListener('krishi_mitra_profile_updated', updatePic);
+      window.removeEventListener('storage', updatePic);
+    };
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm transition-colors">
@@ -37,9 +55,19 @@ export const Header: React.FC<HeaderProps> = ({
             />
           </div>
 
-          {/* Clean Top Action Bar: Notification, Language Toggle, Profile */}
+          {/* Clean Top Action Bar: Helpline, Notification, Language Toggle, Profile */}
           <div className="flex items-center gap-1.5 sm:gap-2">
             
+            {/* Quick Call Kisan Helpline (1800-180-1551) */}
+            <a 
+              href="tel:18001801551" 
+              className="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-xl transition-colors flex items-center justify-center border border-red-100 active:scale-95"
+              title="किसान कॉल सेंटर (Kisan Helpline: 1800-180-1551)"
+              aria-label="Kisan Helpline"
+            >
+              <PhoneCall className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+            </a>
+
             {/* Notification Bell (🔔) */}
             <button
               onClick={onOpenNotifications}
@@ -53,28 +81,22 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
-            {/* Language Toggle (A/अ) - Toggles globally between English & Hindi */}
-            <button
-              onClick={toggleLanguage}
-              title={t('change_language')}
-              aria-label={t('change_language')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-soil-100 hover:bg-forest-pale hover:text-forest text-slate-800 text-xs font-bold border border-slate-200 transition-all active:scale-95 shadow-xs"
-            >
-              <span className="text-forest font-black text-xs">A/अ</span>
-              <span className="text-[11px] font-extrabold text-slate-700">
-                {language === 'hi' ? 'हिन्दी' : 'English'}
-              </span>
-            </button>
+            {/* Multi-Language Switcher (5 Major Regional Languages) */}
+            <LanguageSwitcher />
 
             {/* Profile Avatar Icon */}
             <button
               onClick={onOpenProfile}
               title={t('profile')}
               aria-label={t('profile')}
-              className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-slate-100 transition-colors ml-0.5"
+              className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-100 transition-colors ml-0.5"
             >
-              <div className="w-8 h-8 rounded-full bg-forest text-forest-pale font-extrabold text-xs flex items-center justify-center border border-forest-accent/30 shadow-sm">
-                {user?.name?.slice(0, 2).toUpperCase() || <User className="w-4 h-4" />}
+              <div className="w-8 h-8 rounded-full bg-forest text-forest-pale font-extrabold text-xs flex items-center justify-center border border-forest-accent/30 shadow-sm overflow-hidden">
+                {profilePic ? (
+                  <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  user?.name?.slice(0, 2).toUpperCase() || <User className="w-4 h-4" />
+                )}
               </div>
             </button>
 

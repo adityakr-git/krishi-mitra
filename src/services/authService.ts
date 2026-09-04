@@ -67,27 +67,12 @@ export const authService = {
     }
   },
 
-  sendOtp(phone: string): { success: boolean; message: string } {
+  createVerifiedSession(phone: string, firebaseUid?: string): { success: boolean; user?: UserProfile } {
     const cleanPhone = phone.replace(/\D/g, '');
-    if (cleanPhone.length !== 10) {
-      return { success: false, message: 'Please enter a valid 10-digit mobile number' };
-    }
-    // Simulate SMS gateway OTP dispatch
-    return { 
-      success: true, 
-      message: `OTP sent successfully to +91 ${cleanPhone}. (Use 123456 for testing)` 
-    };
-  },
-
-  verifyOtp(phone: string, otp: string): { success: boolean; user?: UserProfile; message?: string } {
-    const cleanPhone = phone.replace(/\D/g, '');
-    if (otp !== '123456' && otp.length !== 6) {
-      return { success: false, message: 'Invalid OTP. Please enter 123456 for testing.' };
-    }
 
     // Lookup known registered user or default to new Farmer
     const user: UserProfile = KNOWN_USERS[cleanPhone] || {
-      id: `usr_${Date.now()}`,
+      id: firebaseUid || `usr_${Date.now()}`,
       phone: cleanPhone,
       name: 'Kisan Mitra',
       role: 'FARMER',

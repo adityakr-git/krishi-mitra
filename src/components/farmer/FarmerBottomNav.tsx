@@ -6,7 +6,7 @@ import {
   CreditCard, 
   User 
 } from 'lucide-react';
-import { useTranslation } from '../../i18n/useTranslation';
+import { useTranslation } from 'react-i18next';
 
 export type FarmerTabType = 'home' | 'nearby' | 'history' | 'profile';
 
@@ -21,7 +21,7 @@ export const FarmerBottomNav: React.FC<FarmerBottomNavProps> = ({
   onChangeTab,
   onOpenBookModal
 }) => {
-  const { language } = useTranslation();
+  const { t } = useTranslation();
 
   return (
     <nav 
@@ -30,7 +30,7 @@ export const FarmerBottomNav: React.FC<FarmerBottomNavProps> = ({
     >
       <div className="w-full max-w-[440px] bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-2xl px-2 py-1.5 flex items-center justify-between pointer-events-auto relative">
         
-        {/* 1. 🏠 Home (होम) */}
+        {/* 1. 🏠 Home */}
         <button
           type="button"
           onClick={() => onChangeTab('home')}
@@ -41,12 +41,12 @@ export const FarmerBottomNav: React.FC<FarmerBottomNavProps> = ({
           <div className={`p-1 rounded-xl transition-colors ${activeTab === 'home' ? 'bg-forest-pale' : ''}`}>
             <Home className={`w-5 h-5 ${activeTab === 'home' ? 'stroke-[2.5]' : 'stroke-2'}`} />
           </div>
-          <span className="text-[10px] tracking-tight mt-0.5">
-            {language === 'hi' ? 'होम' : 'Home'}
+          <span className="text-[10px] tracking-tight mt-0.5 font-bold">
+            {t('home')}
           </span>
         </button>
 
-        {/* 2. 📍 Nearby (मंडियां) */}
+        {/* 2. 📍 Nearby */}
         <button
           type="button"
           onClick={() => onChangeTab('nearby')}
@@ -57,28 +57,28 @@ export const FarmerBottomNav: React.FC<FarmerBottomNavProps> = ({
           <div className={`p-1 rounded-xl transition-colors ${activeTab === 'nearby' ? 'bg-forest-pale' : ''}`}>
             <MapPin className={`w-5 h-5 ${activeTab === 'nearby' ? 'stroke-[2.5]' : 'stroke-2'}`} />
           </div>
-          <span className="text-[10px] tracking-tight mt-0.5">
-            {language === 'hi' ? 'मंडियां' : 'Nearby'}
+          <span className="text-[10px] tracking-tight mt-0.5 font-bold">
+            {t('nearby')}
           </span>
         </button>
 
-        {/* 3. ➕ Book (बुक करें) -> [PROMINENT RAISED CENTER BUTTON] */}
+        {/* 3. ➕ Book Slot -> [PROMINENT RAISED CENTER BUTTON] */}
         <div className="relative -top-5 flex flex-col items-center justify-center shrink-0 px-2">
           <button
             type="button"
             onClick={onOpenBookModal}
-            title={language === 'hi' ? 'मंडी स्लॉट बुक करें' : 'Book Mandi Slot'}
-            aria-label="Book Mandi Slot"
+            title={t('book_slot')}
+            aria-label={t('book_slot')}
             className="w-14 h-14 rounded-full bg-forest hover:bg-forest-light text-white shadow-xl shadow-forest/30 border-4 border-white flex items-center justify-center hover:scale-105 active:scale-95 transition-all group"
           >
             <Plus className="w-7 h-7 stroke-[3] text-white group-hover:rotate-90 transition-transform duration-200" />
           </button>
           <span className="text-[10px] font-black text-forest mt-0.5 tracking-tight">
-            {language === 'hi' ? 'बुक करें' : 'Book'}
+            {t('book_slot')}
           </span>
         </div>
 
-        {/* 4. 💳 History (खाता) */}
+        {/* 4. 💳 History */}
         <button
           type="button"
           onClick={() => onChangeTab('history')}
@@ -89,12 +89,12 @@ export const FarmerBottomNav: React.FC<FarmerBottomNavProps> = ({
           <div className={`p-1 rounded-xl transition-colors ${activeTab === 'history' ? 'bg-forest-pale' : ''}`}>
             <CreditCard className={`w-5 h-5 ${activeTab === 'history' ? 'stroke-[2.5]' : 'stroke-2'}`} />
           </div>
-          <span className="text-[10px] tracking-tight mt-0.5">
-            {language === 'hi' ? 'खाता' : 'History'}
+          <span className="text-[10px] tracking-tight mt-0.5 font-bold">
+            {t('history')}
           </span>
         </button>
 
-        {/* 5. 👤 Profile (प्रोफ़ाइल) */}
+        {/* 5. 👤 Profile */}
         <button
           type="button"
           onClick={() => onChangeTab('profile')}
@@ -105,8 +105,8 @@ export const FarmerBottomNav: React.FC<FarmerBottomNavProps> = ({
           <div className={`p-1 rounded-xl transition-colors ${activeTab === 'profile' ? 'bg-forest-pale' : ''}`}>
             <User className={`w-5 h-5 ${activeTab === 'profile' ? 'stroke-[2.5]' : 'stroke-2'}`} />
           </div>
-          <span className="text-[10px] tracking-tight mt-0.5">
-            {language === 'hi' ? 'प्रोफ़ाइल' : 'Profile'}
+          <span className="text-[10px] tracking-tight mt-0.5 font-bold">
+            {t('profile')}
           </span>
         </button>
 
