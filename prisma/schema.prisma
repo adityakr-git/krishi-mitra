@@ -1,0 +1,131 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  FARMER
+  OFFICER
+  ADMIN
+}
+
+enum TokenStatus {
+  SCHEDULED
+  ARRIVED
+  QUALITY_CHECK
+  WEIGHING
+  PAYMENT_PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  CREDITED
+  FAILED
+}
+
+model User {
+  id                String    @id @default(uuid())
+  phone             String    @unique
+  name              String
+  role              Role      @default(FARMER)
+  village           String?
+  district          String    @default("Gurugram")
+  kisanId           String?   @unique
+  aadhaarLinked     Boolean   @default(false)
+  bankAccountMasked String?
+  mandiId           String?
+  officerBadge      String?
+  tokens            Token[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([phone])
+  @@index([role])
+}
+
+model Mandi {
+  id                     String     @id
+  name                   String
+  location               String
+  dailyCapacity          Int        @default(30)
+  currentQueueLength     Int        @default(0)
+  activeWeighbridges     Int        @default(2)
+  totalWeighbridges      Int        @default(3)
+  avgProcessingTimeMins  Float      @default(6.0)
+  phoneContact           String?
+  latitude               Float?
+  longitude              Float?
+  activeStatus           Boolean    @default(true)
+  tokens                 Token[]
+  cropRates              CropRate[]
+  createdAt              DateTime   @default(now())
+}
+
+model CropRate {
+  id              String   @id @default(uuid())
+  mandiId         String
+  mandi           Mandi    @relation(fields: [mandiId], references: [id])
+  cropName        String
+  cropNameHi      String?
+  governmentMsp   Int
+  localMandiRate  Int
+  updatedAt       DateTime @updatedAt
+
+  @@index([mandiId])
+  @@index([cropName])
+}
+
+model Token {
+  id                   String       @id // e.g. "A-142"
+  qrHash               String
+  userId               String
+  user                 User         @relation(fields: [userId], references: [id])
+  mandiId              String
+  mandi                Mandi        @relation(fields: [mandiId], references: [id])
+  cropType             String
+  cropVariety          String?
+  quantityQuintals     Float
+  status               TokenStatus  @default(SCHEDULED)
+  queuePosition        Int          @default(0)
+  expectedTimeSlot     String
+  estimatedWaitMinutes Int          @default(15)
+  
+  // Quality Check Data
+  moisturePercentage   Float?
+  grade                String?
+
+  // Electronic Scale Data
+  grossWeightKg        Float?
+  tareWeightKg         Float?
+  netQuintals          Float?
+
+  payment              Payment?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([mandiId])
+  @@index([status])
+}
+
+model Payment {
+  id          String        @id @default(uuid())
+  tokenId     String        @unique
+  token       Token         @relation(fields: [tokenId], references: [id])
+  mspRate     Float         @default(2275.0)
+  amount      Float
+  status      PaymentStatus @default(PENDING)
+  dbtRef      String?
+  creditedAt  DateTime?
+  createdAt   DateTime      @default(now())
+}

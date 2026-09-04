@@ -1,0 +1,16 @@
+{
+  "short_name": "KrishiMitra",
+  "name": "Krishi Mitra - Smart Agricultural Procurement",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#1b4332",
+  "theme_color": "#1b4332",
+  "display": "standalone",
+  "orientation": "portrait"
+}

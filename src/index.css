@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light;
+}
+
+/* Custom Accessibility High Contrast Mode */
+.high-contrast {
+  --tw-bg-opacity: 1;
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+.high-contrast .bg-white,
+.high-contrast .bg-soil-50,
+.high-contrast .bg-soil-100 {
+  background-color: #121212 !important;
+  border-color: #555555 !important;
+  color: #ffffff !important;
+}
+
+.high-contrast .text-slate-500,
+.high-contrast .text-slate-600,
+.high-contrast .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+.high-contrast button {
+  border: 2px solid #ffffff !important;
+}
+
+/* Accessibility Large Typography Mode */
+.large-text {
+  font-size: 115% !important;
+}
+
+/* Custom sleek scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Pulse animation utility */
+@keyframes radar-pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+.animate-radar {
+  animation: radar-pulse 2s infinite;
+}
+
+/* Splash Screen Animations */
+@keyframes splash-fade-scale {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes splash-float-glow {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+    filter: drop-shadow(0 10px 25px rgba(27, 67, 50, 0.12));
+  }
+  50% {
+    transform: translateY(-8px) scale(1.02);
+    filter: drop-shadow(0 20px 35px rgba(34, 197, 94, 0.22));
+  }
+}
+
+.animate-splash-logo {
+  animation: splash-fade-scale 1s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+             splash-float-glow 2.5s ease-in-out infinite 1s;
+}
