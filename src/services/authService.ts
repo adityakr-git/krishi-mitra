@@ -91,5 +91,26 @@ export const authService = {
 
   logout(): void {
     localStorage.removeItem(STORAGE_KEY);
+    if (typeof window !== 'undefined') {
+      const win = window as any;
+      if (win.recaptchaVerifier) {
+        try {
+          if (!win.recaptchaVerifier.destroyed) {
+            win.recaptchaVerifier.clear();
+          }
+        } catch {
+          // ignore
+        }
+        win.recaptchaVerifier = null;
+      }
+      const container = document.getElementById('recaptcha-container');
+      if (container && container.parentNode) {
+        const freshNode = document.createElement('div');
+        freshNode.id = 'recaptcha-container';
+        container.parentNode.replaceChild(freshNode, container);
+      } else if (container) {
+        container.innerHTML = '';
+      }
+    }
   }
 };
