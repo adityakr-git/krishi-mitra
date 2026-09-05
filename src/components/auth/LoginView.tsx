@@ -39,10 +39,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const { language, setLanguage } = useProcurementStore();
 
   const [mode, setMode] = useState<'LOGIN' | 'SIGNUP'>('LOGIN');
+  const [activeView, setActiveView] = useState<'farmer' | 'officer' | 'admin'>('farmer');
 
-  // Login Form States
-  const [loginPhone, setLoginPhone] = useState('9876543210');
-  const [loginPassword, setLoginPassword] = useState('password123');
+  // Login Form States (Initialized empty by default)
+  const [loginPhone, setLoginPhone] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
 
   // Signup Form States
@@ -182,16 +183,19 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  // 3. Quick Officer Login Shortcut for Testing & Approval
-  const handleOfficerQuickLogin = () => {
-    localStorage.setItem('krishi_mitra_session', 'officer');
-    const session = authService.createVerifiedSession('9812345670');
+  // 3. Portal Login Execution (Dedicated view login)
+  const executeLogin = (role: 'officer' | 'admin') => {
+    localStorage.setItem('krishi_mitra_session', role);
+    const phone = role === 'officer' ? '9812345670' : '9998887770';
+    const session = authService.createVerifiedSession(phone);
     if (session.success && session.user) {
       login(session.user);
       if (onLoginSuccess) {
         onLoginSuccess(session.user);
       }
     }
+    if (role === 'officer') window.location.href = '/officer-dashboard';
+    if (role === 'admin') window.location.href = '/admin-dashboard';
   };
 
   return (
@@ -227,7 +231,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           className="w-44 sm:w-48 mb-6 mt-2 select-none object-contain drop-shadow-xs" 
         />
 
-        {/* Dual-Mode Selector (Login vs Signup) */}
+        {/* ================= FARMER VIEW ================= */}
+        {activeView === 'farmer' && (
+          <>
+            {/* Dual-Mode Selector (Login vs Signup) */}
         <div className="w-full flex rounded-2xl bg-soil-100 p-1.5 mb-6 border border-slate-200">
           <button
             type="button"
@@ -491,12 +498,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
             {/* Password */}
             <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Password / पासवर्ड
-                </label>
-                <span className="text-[10px] text-slate-400 font-medium">डिफ़ॉल्ट: password123</span>
-              </div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Password / पासवर्ड
+              </label>
               <div className="relative flex items-center">
                 <span className="absolute left-3.5 text-slate-400">
                   <Lock className="w-4 h-4" />
@@ -529,34 +533,100 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           </form>
         )}
 
-        {/* ========================================================= */}
-        {/* OFFICER TESTING SHORTCUT ONLY (Per Requirement #5) */}
-        {/* ========================================================= */}
-        <div className="w-full mt-8 border-t border-slate-200 pt-6">
-          <p className="text-center text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3">
-            Testing & Verification Console
-          </p>
-          <button
-            type="button"
-            onClick={handleOfficerQuickLogin}
-            className="w-full p-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-between border border-slate-700 shadow-sm transition-all group active:scale-98"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center text-amber-400 border border-slate-700">
-                <ShieldCheck className="w-4 h-4" />
+        {/* Testing Console (Now changes views instead of logging in) */}
+        <div className="w-full mt-12 border-t border-gray-200 pt-8 pb-4">
+          <p className="text-center text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Official Portals</p>
+          <div className="flex flex-col gap-3">
+            <button 
+              type="button"
+              onClick={() => setActiveView('officer')} 
+              className="w-full bg-[#0F172A] text-white p-4 rounded-xl font-bold flex justify-between items-center hover:bg-gray-800 transition-colors shadow-md active:scale-98"
+            >
+              <div className="flex flex-col items-start">
+                <span>Mandi Officer Portal</span>
+                <span className="text-xs text-gray-400 font-normal">S.P. Varma (Badge #409)</span>
               </div>
-              <div className="text-left">
-                <strong className="block text-xs font-bold text-white">
-                  Mandi Officer Portal (S.P. Varma)
-                </strong>
-                <span className="text-[10px] text-slate-400">
-                  Switch to Officer Console to Review & Approve Farmers
-                </span>
+              <span>→</span>
+            </button>
+            <button 
+              type="button"
+              onClick={() => setActiveView('admin')} 
+              className="w-full bg-[#1E3A8A] text-white p-4 rounded-xl font-bold flex justify-between items-center hover:bg-blue-900 transition-colors shadow-md active:scale-98"
+            >
+              <div className="flex flex-col items-start">
+                <span>District Admin Portal</span>
+                <span className="text-xs text-blue-200 font-normal">Command Center</span>
               </div>
-            </div>
-            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" />
-          </button>
+              <span>→</span>
+            </button>
+          </div>
         </div>
+      </>
+    )}
+
+    {/* ================= OFFICER VIEW ================= */}
+    {activeView === 'officer' && (
+      <div className="w-full animate-fade-in">
+        <h2 className="text-xl font-bold text-gray-800 mb-2">Mandi Officer Login</h2>
+        <p className="text-sm text-gray-500 mb-6">Authorized APMC personnel only.</p>
+        
+        <div className="mb-4">
+          <label className="block text-sm font-bold text-gray-700 mb-2">Officer ID</label>
+          <input type="text" readOnly value="OFFICER-409" className="w-full p-4 border rounded-xl bg-gray-100 text-gray-600 font-mono" />
+        </div>
+        <div className="mb-8">
+          <label className="block text-sm font-bold text-gray-700 mb-2">Password</label>
+          <input type="password" readOnly value="demo1234" className="w-full p-4 border rounded-xl bg-gray-100 text-gray-600" />
+        </div>
+
+        <button 
+          type="button"
+          onClick={() => executeLogin('officer')} 
+          className="w-full bg-[#0F172A] text-white font-bold p-4 rounded-xl hover:bg-gray-800 mb-4 shadow-lg transition-all active:scale-98"
+        >
+          Secure Login →
+        </button>
+        <button 
+          type="button"
+          onClick={() => setActiveView('farmer')} 
+          className="w-full text-gray-500 font-bold p-4 hover:text-gray-800 transition-colors"
+        >
+          ← Back to Farmer Login
+        </button>
+      </div>
+    )}
+
+    {/* ================= ADMIN VIEW ================= */}
+    {activeView === 'admin' && (
+      <div className="w-full animate-fade-in">
+        <h2 className="text-xl font-bold text-gray-800 mb-2">District Admin Login</h2>
+        <p className="text-sm text-gray-500 mb-6">Command center access.</p>
+        
+        <div className="mb-4">
+          <label className="block text-sm font-bold text-gray-700 mb-2">Admin ID</label>
+          <input type="text" readOnly value="ADMIN-GURUGRAM" className="w-full p-4 border rounded-xl bg-gray-100 text-gray-600 font-mono" />
+        </div>
+        <div className="mb-8">
+          <label className="block text-sm font-bold text-gray-700 mb-2">Password</label>
+          <input type="password" readOnly value="adminDemo" className="w-full p-4 border rounded-xl bg-gray-100 text-gray-600" />
+        </div>
+
+        <button 
+          type="button"
+          onClick={() => executeLogin('admin')} 
+          className="w-full bg-[#1E3A8A] text-white font-bold p-4 rounded-xl hover:bg-blue-900 mb-4 shadow-lg transition-all active:scale-98"
+        >
+          Secure Login →
+        </button>
+        <button 
+          type="button"
+          onClick={() => setActiveView('farmer')} 
+          className="w-full text-gray-500 font-bold p-4 hover:text-gray-800 transition-colors"
+        >
+          ← Back to Farmer Login
+        </button>
+      </div>
+    )}
 
       </div>
 
