@@ -3,7 +3,7 @@ import { authService, UserProfile } from '../../services/authService';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useProcurementStore } from '../../store/useProcurementStore';
 import { Language } from '../../types';
-import { getApiUrl } from '../../utils/api';
+import { API_BASE_URL, getApiUrl } from '../../utils/api';
 import { 
   Globe, 
   ShieldCheck, 
@@ -59,24 +59,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Ensure initial registered_farmers structure exists in localStorage
-  useEffect(() => {
-    const existing = localStorage.getItem('registered_farmers');
-    if (!existing) {
-      const initialFarmers: RegisteredFarmer[] = [
-        {
-          id: 'F-101',
-          name: 'Ramesh Kumar',
-          phone: '9876543210',
-          password: 'password123',
-          document: DEFAULT_SAMPLE_DOCUMENT,
-          status: 'pending' // Initial pending review status as requested
-        }
-      ];
-      localStorage.setItem('registered_farmers', JSON.stringify(initialFarmers));
-    }
-  }, []);
-
   // Handle Document File Upload for Signup
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -95,8 +77,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     setDocumentFileName('Sample_Khasra_Khatauni_Haryana.svg');
   };
 
-  // 1. Farmer Registration (Signup Mode) with Neon Backend API
-  const handleSignupSubmit = async (e: React.FormEvent) => {
+  // 1. Rewrite Signup Logic (Real Backend API & Neon PostgreSQL)
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setSignupError(null);
 
@@ -121,7 +103,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch(getApiUrl('/api/auth/signup'), {
+      const response = await fetch(`${API_BASE_URL}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -132,55 +114,29 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         })
       });
 
-      const data = await res.json();
+      const data = await response.json();
 
-      if (!res.ok) {
-        setSignupError(data.error || 'पंजीकरण में त्रुटि। कृपया पुनः प्रयास करें।');
-        setIsSubmitting(false);
-        return;
+      if (data.success) {
+        alert("पंजीकरण सफल! अधिकारी की मंजूरी का इंतज़ार करें। (Signup successful!)");
+        setSignupSuccess(true);
+        setMode('LOGIN');
+        setLoginPhone(cleanPhone);
+        setLoginPassword('');
+      } else {
+        setSignupError(data.error || "Signup failed.");
+        alert(data.error || "Signup failed.");
       }
-
-      // Sync with localStorage for instant local reactivity
-      const existingData: RegisteredFarmer[] = JSON.parse(localStorage.getItem('registered_farmers') || '[]');
-      const newFarmer: RegisteredFarmer = {
-        id: data.user?.id || `F-${Math.floor(100 + Math.random() * 900)}`,
-        name: signupName.trim(),
-        phone: cleanPhone,
-        password: signupPassword,
-        document: docToSave,
-        status: 'pending'
-      };
-      const updatedData = [...existingData.filter(f => f.phone !== cleanPhone), newFarmer];
-      localStorage.setItem('registered_farmers', JSON.stringify(updatedData));
-      window.dispatchEvent(new Event('registered_farmers_updated'));
-
-      setSignupSuccess(true);
-    } catch (err) {
-      console.warn('Backend signup error, using local fallback:', err);
-      const existingData: RegisteredFarmer[] = JSON.parse(localStorage.getItem('registered_farmers') || '[]');
-      if (existingData.find(f => f.phone === cleanPhone)) {
-        setSignupError('यह मोबाइल नंबर पहले से पंजीकृत है। कृपया लॉगिन करें।');
-        setIsSubmitting(false);
-        return;
-      }
-      const newFarmer: RegisteredFarmer = {
-        id: `F-${Math.floor(100 + Math.random() * 900)}`,
-        name: signupName.trim(),
-        phone: cleanPhone,
-        password: signupPassword,
-        document: docToSave,
-        status: 'pending'
-      };
-      localStorage.setItem('registered_farmers', JSON.stringify([...existingData, newFarmer]));
-      window.dispatchEvent(new Event('registered_farmers_updated'));
-      setSignupSuccess(true);
+    } catch (error) {
+      console.error("Signup Error:", error);
+      setSignupError("सर्वर से कनेक्ट नहीं हो सका। (Cannot connect to server)");
+      alert("सर्वर से कनेक्ट नहीं हो सका। (Cannot connect to server)");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // 2. Farmer Login (Login Mode) with Neon Backend API
-  const handleLoginSubmit = async (e: React.FormEvent) => {
+  // 2. Rewrite Login Logic (Real Backend API & Neon PostgreSQL)
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
 
@@ -194,7 +150,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch(getApiUrl('/api/auth/login'), {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -203,67 +159,46 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         })
       });
 
-      const data = await res.json();
+      const data = await response.json();
 
-      if (!res.ok) {
-        setLoginError(data.error || 'गलत क्रेडेंशियल्स। कृपया फोन नंबर और पासवर्ड जांचें।');
-        setIsSubmitting(false);
-        return;
-      }
+      if (data.success && data.user) {
+        if (data.user.status === 'pending') {
+          setLoginError("आपका खाता अभी मंडी अधिकारी द्वारा सत्यापन के लिए कतार में है। (Account under verification)");
+          alert("आपका खाता अभी मंडी अधिकारी द्वारा सत्यापन के लिए कतार में है। (Account under verification)");
+        } else if (data.user.status === 'approved') {
+          // Save the SESSION locally so the app knows who is logged in
+          localStorage.setItem('krishi_mitra_session', (data.user.role || 'farmer').toLowerCase());
+          localStorage.setItem('krishi_mitra_user_id', data.user.id);
+          localStorage.setItem('krishi_mitra_phone', data.user.phone);
 
-      const user = data.user;
-
-      // If status === 'pending'
-      if (user.status === 'pending') {
-        setLoginError('⚠️ आपका खाता अभी सत्यापन के लिए कतार में है। कृपया प्रतीक्षा करें। (Your account is currently under review by Mandi Officer.)');
-        setIsSubmitting(false);
-        return;
-      }
-
-      // If status === 'approved' -> Proceed to Farmer Dashboard
-      if (user.status === 'approved') {
-        localStorage.setItem('krishi_mitra_session', 'farmer');
-        const session = authService.createVerifiedSession(user.phone, user.id);
-        if (session.success && session.user) {
-          session.user.name = user.name;
-          login(session.user);
-          if (onLoginSuccess) {
-            onLoginSuccess(session.user);
+          const session = authService.createVerifiedSession(data.user.phone, data.user.id);
+          if (session.success && session.user) {
+            session.user.name = data.user.name;
+            session.user.role = (data.user.role || 'farmer').toUpperCase() as any;
+            login(session.user);
+            if (onLoginSuccess) {
+              onLoginSuccess(session.user);
+            }
+          }
+          if (window.location.pathname !== '/' && window.location.pathname !== '/dashboard') {
+            window.location.href = '/dashboard';
           }
         }
+      } else {
+        setLoginError(data.error || "गलत क्रेडेंशियल्स। (Invalid credentials)");
+        alert(data.error || "गलत क्रेडेंशियल्स। (Invalid credentials)");
       }
-    } catch (err) {
-      console.warn('Backend login error, checking local storage:', err);
-      const registeredFarmers: RegisteredFarmer[] = JSON.parse(localStorage.getItem('registered_farmers') || '[]');
-      const farmer = registeredFarmers.find(f => f.phone === cleanPhone);
-
-      if (!farmer || farmer.password !== loginPassword) {
-        setLoginError('गलत क्रेडेंशियल्स। कृपया फोन नंबर और पासवर्ड जांचें। (Invalid credentials.)');
-        setIsSubmitting(false);
-        return;
-      }
-
-      if (farmer.status === 'pending') {
-        setLoginError('⚠️ आपका खाता अभी सत्यापन के लिए कतार में है। कृपया प्रतीक्षा करें। (Your account is currently under review by Mandi Officer.)');
-        setIsSubmitting(false);
-        return;
-      }
-
-      if (farmer.status === 'approved') {
-        localStorage.setItem('krishi_mitra_session', 'farmer');
-        const session = authService.createVerifiedSession(farmer.phone, farmer.id);
-        if (session.success && session.user) {
-          session.user.name = farmer.name;
-          login(session.user);
-          if (onLoginSuccess) {
-            onLoginSuccess(session.user);
-          }
-        }
-      }
+    } catch (error) {
+      console.error("Login Error:", error);
+      setLoginError("सर्वर से कनेक्ट नहीं हो सका। (Cannot connect to server)");
+      alert("सर्वर से कनेक्ट नहीं हो सका। (Cannot connect to server)");
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const handleSignupSubmit = handleSignup;
+  const handleLoginSubmit = handleLogin;
 
   // 3. Portal Login Execution (Dedicated view login)
   const executeLogin = (role: 'officer' | 'admin') => {

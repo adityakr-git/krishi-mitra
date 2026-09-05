@@ -69,6 +69,12 @@ export const authService = {
         const session = authService.createVerifiedSession('9998887770');
         return session.user || null;
       }
+      if (sessionRole === 'farmer') {
+        const phone = localStorage.getItem('krishi_mitra_phone') || '9876543210';
+        const userId = localStorage.getItem('krishi_mitra_user_id') || undefined;
+        const session = authService.createVerifiedSession(phone, userId);
+        return session.user || null;
+      }
       return null;
     }
     try {

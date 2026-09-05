@@ -1,16 +1,30 @@
 /**
- * Utility to construct API URLs compatible with both local Vite development proxy
- * and separate production domains (e.g. Firebase Hosting frontend calling Render backend).
- *
- * If VITE_BACKEND_URL is defined (e.g., in production: https://krishi-mitra-backend.onrender.com),
- * it prepends that base URL.
- * If VITE_BACKEND_URL is not set (e.g., local dev), it returns the relative path,
- * which Vite proxies directly to http://localhost:5001.
+ * API Base URL for cross-device authentication and testing.
+ * Automatically adapts:
+ * - If VITE_BACKEND_URL is defined, uses that.
+ * - If accessed from a mobile device on the same Wi-Fi (e.g. 192.168.x.x:5173 or 10.x.x.x:5173),
+ *   it dynamically uses http://{window.location.hostname}:5000/api so mobile testing works out-of-the-box!
+ * - Defaults to http://localhost:5000/api
+ */
+export const API_BASE_URL = (() => {
+  const envUrl = import.meta.env.VITE_BACKEND_URL;
+  if (envUrl && envUrl.trim()) {
+    const raw = envUrl.trim().replace(/\/+$/, '');
+    return raw.endsWith('/api') ? raw : `${raw}/api`;
+  }
+  if (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return `http://${window.location.hostname}:5000/api`;
+  }
+  return 'http://localhost:5000/api';
+})();
+
+/**
+ * Constructs a full API endpoint URL from a relative path.
  */
 export function getApiUrl(path: string): string {
-  const rawBase = import.meta.env.VITE_BACKEND_URL;
-  const baseUrl = rawBase ? rawBase.trim().replace(/\/+$/, '') : '';
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-
-  return baseUrl ? `${baseUrl}${cleanPath}` : cleanPath;
+  if (cleanPath.startsWith('/api/')) {
+    return `${API_BASE_URL}${cleanPath.substring(4)}`;
+  }
+  return `${API_BASE_URL}${cleanPath}`;
 }
