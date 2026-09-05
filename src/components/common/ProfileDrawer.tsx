@@ -12,7 +12,8 @@ import {
   VolumeX, 
   Landmark, 
   CheckCircle2, 
-  CreditCard 
+  CreditCard,
+  Camera 
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useProcurementStore } from '../../store/useProcurementStore';
@@ -35,10 +36,15 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({ isOpen, onClose, o
 
   const [muted, setMuted] = useState(getGlobalMute());
   const [profilePic, setProfilePic] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     const updatePic = () => {
-      const saved = localStorage.getItem('krishi_mitra_profile_pic');
+      // 1. Get the current active role from the session (saved during login)
+      const activeRole = localStorage.getItem('krishi_mitra_session') || user?.role?.toLowerCase() || 'default';
+      // 2. Create a dynamic storage key based on the role
+      const PROFILE_PIC_KEY = `krishi_mitra_profile_pic_${activeRole}`;
+      const saved = localStorage.getItem(PROFILE_PIC_KEY);
       setProfilePic(saved);
     };
     updatePic();
@@ -49,7 +55,23 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({ isOpen, onClose, o
       window.removeEventListener('krishi_mitra_profile_updated', updatePic);
       window.removeEventListener('storage', updatePic);
     };
-  }, []);
+  }, [user?.role]);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setProfilePic(base64String);
+        const activeRole = localStorage.getItem('krishi_mitra_session') || user?.role?.toLowerCase() || 'default';
+        const PROFILE_PIC_KEY = `krishi_mitra_profile_pic_${activeRole}`;
+        localStorage.setItem(PROFILE_PIC_KEY, base64String);
+        window.dispatchEvent(new Event('krishi_mitra_profile_updated'));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -66,14 +88,28 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({ isOpen, onClose, o
         {/* Header */}
         <div>
           <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-soil-50">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-full bg-forest text-forest-pale flex items-center justify-center font-bold text-xs overflow-hidden border border-forest-accent/30 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <div 
+                onClick={() => fileInputRef.current?.click()}
+                className="relative group cursor-pointer w-10 h-10 rounded-full bg-forest text-forest-pale flex items-center justify-center font-bold text-xs overflow-hidden border border-forest-accent/30 shadow-sm"
+                title="Click to change profile picture"
+              >
                 {profilePic ? (
                   <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
                   user?.name?.slice(0, 2).toUpperCase() || 'KM'
                 )}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <Camera className="w-3.5 h-3.5 text-white" />
+                </div>
               </div>
+              <input 
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageChange}
+              />
               <div>
                 <h3 className="font-bold text-sm text-slate-900">{user?.name}</h3>
                 <span className="text-[10px] text-slate-500 capitalize">{user?.role?.toLowerCase()} Profile</span>

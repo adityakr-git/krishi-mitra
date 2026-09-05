@@ -1,63 +1,191 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { authService, UserProfile } from '../../services/authService';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useProcurementStore } from '../../store/useProcurementStore';
 import { Language } from '../../types';
-import { Globe } from 'lucide-react';
+import { 
+  Globe, 
+  ShieldCheck, 
+  User, 
+  Phone, 
+  Lock, 
+  Upload, 
+  FileText, 
+  CheckCircle2, 
+  Clock, 
+  AlertCircle,
+  ArrowRight,
+  ShieldAlert,
+  UserCheck
+} from 'lucide-react';
 
 interface LoginViewProps {
   onLoginSuccess?: (user: UserProfile) => void;
 }
 
+export interface RegisteredFarmer {
+  id: string;
+  name: string;
+  phone: string;
+  password: string;
+  document: string;
+  status: 'pending' | 'approved';
+}
+
+const DEFAULT_SAMPLE_DOCUMENT = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400" fill="%23f8fafc"><rect width="100%" height="100%" fill="%23fdfbf7" stroke="%23cbd5e1" stroke-width="4"/><rect x="20" y="20" width="560" height="50" fill="%231a4d2e" rx="6"/><text x="300" y="52" fill="white" font-family="sans-serif" font-size="20" font-weight="bold" text-anchor="middle">राजस्व विभाग • भू-अभिलेख (खसरा-खतौनी एवं आधार)</text><text x="40" y="110" fill="%23334155" font-family="sans-serif" font-size="14" font-weight="bold">राज्य / State: हरियाणा (Haryana) | जिला: गुरुग्राम (Gurugram)</text><text x="40" y="140" fill="%23334155" font-family="sans-serif" font-size="14">तहसील: बादशाहपुर | उप-संभाग: सोहना रोड</text><line x1="40" y1="160" x2="560" y2="160" stroke="%23e2e8f0" stroke-width="2"/><text x="40" y="195" fill="%231e293b" font-family="sans-serif" font-size="15" font-weight="bold">खातेदार का नाम: रमेश कुमार पुत्र श्री रामेश्वर दयाल</text><text x="40" y="225" fill="%23475569" font-family="sans-serif" font-size="13">आधार संख्या: XXXX-XXXX-4092 (प्रमाणित व लिंक)</text><text x="40" y="255" fill="%23475569" font-family="sans-serif" font-size="13">खसरा संख्या: 142/18, 143/2, 144/1 • कुल रकबा: 4.85 हेक्टेयर</text><text x="40" y="285" fill="%23475569" font-family="sans-serif" font-size="13">मुख्य फसल: गेहूं (Sharbati) • सरसों (Mustard)</text><rect x="40" y="320" width="160" height="45" fill="%23ecfdf5" stroke="%2310b981" rx="8"/><text x="120" y="348" fill="%23065f46" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle">✓ भू-अभिलेख सत्यापित</text></svg>`;
+
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   const { login } = useAuthStore();
   const { language, setLanguage } = useProcurementStore();
 
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [showOtp, setShowOtp] = useState(false);
-  const [otp, setOtp] = useState('');
+  const [mode, setMode] = useState<'LOGIN' | 'SIGNUP'>('LOGIN');
 
-  // 1. Fake OTP Trigger
-  const handleGetOTP = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanDigits = phoneNumber.replace(/\D/g, '');
-    if (cleanDigits.length === 10) {
-      setShowOtp(true);
-    } else {
-      alert("कृपया 10 अंकों का मोबाइल नंबर दर्ज करें। (Please enter a valid 10-digit mobile number)");
+  // Login Form States
+  const [loginPhone, setLoginPhone] = useState('9876543210');
+  const [loginPassword, setLoginPassword] = useState('password123');
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  // Signup Form States
+  const [signupName, setSignupName] = useState('');
+  const [signupPhone, setSignupPhone] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupDocument, setSignupDocument] = useState<string>('');
+  const [documentFileName, setDocumentFileName] = useState<string>('');
+  const [signupError, setSignupError] = useState<string | null>(null);
+  const [signupSuccess, setSignupSuccess] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Ensure initial registered_farmers structure exists in localStorage
+  useEffect(() => {
+    const existing = localStorage.getItem('registered_farmers');
+    if (!existing) {
+      const initialFarmers: RegisteredFarmer[] = [
+        {
+          id: 'F-101',
+          name: 'Ramesh Kumar',
+          phone: '9876543210',
+          password: 'password123',
+          document: DEFAULT_SAMPLE_DOCUMENT,
+          status: 'pending' // Initial pending review status as requested
+        }
+      ];
+      localStorage.setItem('registered_farmers', JSON.stringify(initialFarmers));
+    }
+  }, []);
+
+  // Handle Document File Upload for Signup
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setDocumentFileName(file.name);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSignupDocument(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  // 2. Fake OTP Verification
-  const handleVerifyOTP = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (otp === '123456' || otp.length === 6) { // Accepts hardcoded mock OTP 123456
-      // Determine role if a known number was typed, or default to farmer
-      const cleanDigits = phoneNumber.replace(/\D/g, '');
-      let role = 'farmer';
-      if (cleanDigits === '9812345670') role = 'officer';
-      else if (cleanDigits === '9998887770') role = 'admin';
-      
-      handleMockLogin(role);
-    } else {
-      alert("गलत OTP! (Demo OTP is 123456)");
-    }
+  const handleUseSampleDoc = () => {
+    setSignupDocument(DEFAULT_SAMPLE_DOCUMENT);
+    setDocumentFileName('Sample_Khasra_Khatauni_Haryana.svg');
   };
 
-  // 3. The Shortcut / Demo Login Engine
-  const handleMockLogin = (role: string) => {
-    // Save mock session
-    localStorage.setItem('krishi_mitra_session', role);
+  // 1. Farmer Registration (Signup Mode)
+  const handleSignupSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSignupError(null);
 
-    const phoneMap: Record<string, string> = {
-      farmer: '9876543210',
-      officer: '9812345670',
-      admin: '9998887770'
+    const cleanPhone = signupPhone.replace(/\D/g, '');
+
+    if (!signupName.trim()) {
+      setSignupError('कृपया पूरा नाम दर्ज करें। (Please enter your full name)');
+      return;
+    }
+
+    if (cleanPhone.length !== 10) {
+      setSignupError('कृपया सही 10-अंकीय मोबाइल नंबर दर्ज करें। (Enter valid 10-digit mobile number)');
+      return;
+    }
+
+    if (signupPassword.length < 4) {
+      setSignupError('पासवर्ड कम से कम 4 अक्षरों का होना चाहिए। (Password must be at least 4 characters)');
+      return;
+    }
+
+    const docToSave = signupDocument || DEFAULT_SAMPLE_DOCUMENT;
+
+    const existingData: RegisteredFarmer[] = JSON.parse(localStorage.getItem('registered_farmers') || '[]');
+
+    // Check if phone already registered
+    const alreadyExists = existingData.find(f => f.phone === cleanPhone);
+    if (alreadyExists) {
+      setSignupError('यह मोबाइल नंबर पहले से पंजीकृत है। कृपया लॉगिन करें। (Phone number already registered)');
+      return;
+    }
+
+    const newFarmer: RegisteredFarmer = {
+      id: `F-${Math.floor(100 + Math.random() * 900)}`,
+      name: signupName.trim(),
+      phone: cleanPhone,
+      password: signupPassword,
+      document: docToSave,
+      status: 'pending' // Default pending as required
     };
 
-    const targetPhone = phoneMap[role.toLowerCase()] || phoneNumber || '9876543210';
-    const session = authService.createVerifiedSession(targetPhone);
+    const updatedData = [...existingData, newFarmer];
+    localStorage.setItem('registered_farmers', JSON.stringify(updatedData));
+    window.dispatchEvent(new Event('registered_farmers_updated'));
 
+    setSignupSuccess(true);
+  };
+
+  // 2. Farmer Login (Login Mode)
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+
+    const cleanPhone = loginPhone.replace(/\D/g, '');
+
+    if (cleanPhone.length !== 10) {
+      setLoginError('कृपया सही 10-अंकीय मोबाइल नंबर दर्ज करें।');
+      return;
+    }
+
+    const registeredFarmers: RegisteredFarmer[] = JSON.parse(localStorage.getItem('registered_farmers') || '[]');
+    const farmer = registeredFarmers.find(f => f.phone === cleanPhone);
+
+    // If credentials don't match
+    if (!farmer || farmer.password !== loginPassword) {
+      setLoginError('गलत क्रेडेंशियल्स। कृपया फोन नंबर और पासवर्ड जांचें। (Invalid credentials.)');
+      return;
+    }
+
+    // If status === 'pending'
+    if (farmer.status === 'pending') {
+      setLoginError('⚠️ आपका खाता अभी सत्यापन के लिए कतार में है। कृपया प्रतीक्षा करें। (Your account is currently under review by Mandi Officer.)');
+      return;
+    }
+
+    // If status === 'approved' -> Proceed to Farmer Dashboard
+    if (farmer.status === 'approved') {
+      localStorage.setItem('krishi_mitra_session', 'farmer');
+      const session = authService.createVerifiedSession(farmer.phone, farmer.id);
+      if (session.success && session.user) {
+        session.user.name = farmer.name;
+        login(session.user);
+        if (onLoginSuccess) {
+          onLoginSuccess(session.user);
+        }
+      }
+    }
+  };
+
+  // 3. Quick Officer Login Shortcut for Testing & Approval
+  const handleOfficerQuickLogin = () => {
+    localStorage.setItem('krishi_mitra_session', 'officer');
+    const session = authService.createVerifiedSession('9812345670');
     if (session.success && session.user) {
       login(session.user);
       if (onLoginSuccess) {
@@ -67,13 +195,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col justify-between p-4 sm:p-6">
+    <div className="min-h-screen bg-white flex flex-col justify-between p-4 sm:p-6 selection:bg-forest-pale selection:text-forest-deep">
       
       {/* Top Header with Language Switcher */}
       <div className="max-w-md w-full mx-auto flex items-center justify-between pt-2">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-extrabold tracking-wider text-forest uppercase">
-            Krishi Mitra
+          <span className="text-xs font-black tracking-wider text-forest uppercase">
+            Krishi Mitra • राष्ट्रीय कृषि पोर्टल
           </span>
         </div>
         <div className="relative flex items-center gap-1.5 bg-soil-100 rounded-xl px-2.5 py-1 text-xs font-semibold text-slate-700">
@@ -91,110 +219,349 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         </div>
       </div>
 
-      <div className="flex flex-col items-center p-6 w-full max-w-md mx-auto my-auto">
+      <div className="flex flex-col items-center p-4 sm:p-6 w-full max-w-md mx-auto my-auto">
         {/* Logo Header */}
         <img 
           src="/krishi-mitra-logo.png" 
           alt="Krishi Mitra" 
-          className="w-48 mb-8 mt-4 select-none object-contain" 
+          className="w-44 sm:w-48 mb-6 mt-2 select-none object-contain drop-shadow-xs" 
         />
 
-        {/* Main Login Form */}
-        <form className="w-full" onSubmit={showOtp ? handleVerifyOTP : handleGetOTP}>
-          <label className="block text-sm font-bold text-gray-700 mb-2 uppercase">
-            Mobile Number / मोबाइल नंबर
-          </label>
-          
-          <div className="flex w-full border rounded-xl overflow-hidden mb-6 bg-gray-50 focus-within:border-green-600 transition-colors">
-            <span className="p-4 font-bold text-gray-500 border-r">+91</span>
-            <input 
-              type="tel"
-              maxLength={10}
-              className="w-full p-4 bg-transparent outline-none font-bold text-lg text-slate-900"
-              placeholder="Enter 10-digit number"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
-              disabled={showOtp}
-            />
-          </div>
+        {/* Dual-Mode Selector (Login vs Signup) */}
+        <div className="w-full flex rounded-2xl bg-soil-100 p-1.5 mb-6 border border-slate-200">
+          <button
+            type="button"
+            onClick={() => {
+              setMode('LOGIN');
+              setSignupSuccess(false);
+              setLoginError(null);
+            }}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              mode === 'LOGIN'
+                ? 'bg-white text-forest shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            लॉगिन करें (Login)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMode('SIGNUP');
+              setSignupSuccess(false);
+              setSignupError(null);
+            }}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              mode === 'SIGNUP'
+                ? 'bg-white text-forest shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            नया खाता बनाएं (Signup)
+          </button>
+        </div>
 
-          {showOtp && (
-            <div className="mb-6 animate-fade-in">
-              <label className="block text-sm font-bold text-gray-700 mb-2">
-                Enter OTP (Use 123456) / ओटीपी दर्ज करें
-              </label>
-              <input 
-                type="text"
-                maxLength={6}
-                autoFocus
-                className="w-full p-4 border rounded-xl bg-gray-50 outline-none font-bold text-lg text-center tracking-[1em] text-slate-900 focus:border-green-600"
-                value={otp}
-                placeholder="123456"
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-              />
-              <div className="flex justify-between items-center mt-2 px-1">
-                <span className="text-xs text-green-700 font-medium">
-                  ✓ Demo Code: <strong>123456</strong>
-                </span>
+        {/* ========================================================= */}
+        {/* SIGNUP MODE */}
+        {/* ========================================================= */}
+        {mode === 'SIGNUP' && (
+          <div className="w-full">
+            {signupSuccess ? (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 text-center space-y-4 animate-fade-in shadow-sm">
+                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                  <CheckCircle2 className="w-9 h-9" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-emerald-900">
+                    आपका पंजीकरण सफल रहा!
+                  </h3>
+                  <p className="text-xs text-emerald-800 font-medium mt-2 leading-relaxed">
+                    मंडी अधिकारी द्वारा दस्तावेज़ों की जांच के बाद आप लॉगिन कर सकेंगे।
+                  </p>
+                  <p className="text-[11px] text-emerald-600 font-medium mt-1">
+                    (Registration successful. You can log in after officer verification.)
+                  </p>
+                </div>
+                <div className="bg-white/80 p-3 rounded-2xl border border-emerald-100 text-left space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">किसान का नाम:</span>
+                    <strong className="text-slate-800">{signupName}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">पंजीकृत मोबाइल:</span>
+                    <strong className="text-slate-800">+91 {signupPhone}</strong>
+                  </div>
+                  <div className="flex justify-between items-center pt-1 border-t border-emerald-50">
+                    <span className="text-slate-500">वर्तमान स्थिति:</span>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold inline-flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> सत्यापन कतार में (Pending)
+                    </span>
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
-                    setShowOtp(false);
-                    setOtp('');
+                    setLoginPhone(signupPhone);
+                    setLoginPassword(signupPassword);
+                    setMode('LOGIN');
+                    setSignupSuccess(false);
                   }}
-                  className="text-xs font-bold text-gray-500 hover:text-green-700 underline"
+                  className="w-full bg-forest hover:bg-forest-light text-white font-bold py-3 px-4 rounded-xl text-xs transition-colors shadow-md"
                 >
-                  Change Number
+                  लॉगिन पृष्ठ पर जाएं (Go to Login)
                 </button>
               </div>
-            </div>
-          )}
+            ) : (
+              <form onSubmit={handleSignupSubmit} className="space-y-4">
+                <div className="text-center mb-2">
+                  <h2 className="text-base font-extrabold text-slate-800">
+                    किसान पंजीकरण (Farmer Registration)
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    मंडी प्रवेश व सीधी खरीद हेतु विवरण दर्ज करें
+                  </p>
+                </div>
 
-          <button 
-            type="submit"
-            className="w-full bg-[#1A4D2E] text-white font-bold p-4 rounded-xl flex justify-center items-center gap-2 hover:bg-[#133c23] transition-colors shadow-sm"
-          >
-            {showOtp ? "Verify OTP" : "Get OTP →"}
-          </button>
-        </form>
+                {/* Full Name */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Full Name / किसान का नाम
+                  </label>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3.5 text-slate-400">
+                      <User className="w-4 h-4" />
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      value={signupName}
+                      onChange={(e) => setSignupName(e.target.value)}
+                      placeholder="उदा. रमेश कुमार (Ramesh Kumar)"
+                      className="w-full bg-soil-50 border border-slate-200 text-slate-900 font-bold text-sm rounded-xl pl-10 pr-3.5 py-3 focus:outline-none focus:ring-2 focus:ring-forest focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
 
-        {/* Development Shortcuts */}
-        <div className="w-full mt-10 border-t pt-8">
-          <p className="text-center text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">
-            Development Environment Shortcuts
-          </p>
-          <div className="grid grid-cols-3 gap-3">
-            <button 
-              type="button"
-              onClick={() => handleMockLogin('farmer')} 
-              className="bg-gray-100 p-3 rounded-lg text-left hover:bg-gray-200 transition-colors"
-            >
-              <h4 className="font-bold text-sm text-gray-800">Farmer</h4>
-              <p className="text-xs text-gray-500">Ramesh Kumar</p>
-            </button>
-            <button 
-              type="button"
-              onClick={() => handleMockLogin('officer')} 
-              className="bg-gray-100 p-3 rounded-lg text-left hover:bg-gray-200 transition-colors"
-            >
-              <h4 className="font-bold text-sm text-gray-800">Officer</h4>
-              <p className="text-xs text-gray-500">S.P. Varma</p>
-            </button>
-            <button 
-              type="button"
-              onClick={() => handleMockLogin('admin')} 
-              className="bg-gray-100 p-3 rounded-lg text-left hover:bg-gray-200 transition-colors"
-            >
-              <h4 className="font-bold text-sm text-gray-800">Admin</h4>
-              <p className="text-xs text-gray-500">District Office</p>
-            </button>
+                {/* Phone Number */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Mobile Number / मोबाइल नंबर
+                  </label>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3.5 font-bold text-slate-500 text-sm border-r border-slate-200 pr-2">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      maxLength={10}
+                      required
+                      value={signupPhone}
+                      onChange={(e) => setSignupPhone(e.target.value.replace(/\D/g, ''))}
+                      placeholder="10-digit number"
+                      className="w-full bg-soil-50 border border-slate-200 text-slate-900 font-bold text-sm rounded-xl pl-16 pr-3.5 py-3 focus:outline-none focus:ring-2 focus:ring-forest focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Set Password / गुप्त पासवर्ड
+                  </label>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3.5 text-slate-400">
+                      <Lock className="w-4 h-4" />
+                    </span>
+                    <input
+                      type="password"
+                      required
+                      value={signupPassword}
+                      onChange={(e) => setSignupPassword(e.target.value)}
+                      placeholder="Enter password"
+                      className="w-full bg-soil-50 border border-slate-200 text-slate-900 font-bold text-sm rounded-xl pl-10 pr-3.5 py-3 focus:outline-none focus:ring-2 focus:ring-forest focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Document Upload */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Aadhaar / Land Record (खसरा-खतौनी / आधार)
+                  </label>
+                  
+                  <div className="border-2 border-dashed border-slate-200 rounded-2xl p-3.5 text-center bg-soil-50 hover:bg-slate-50 transition-colors">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/*,.pdf"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                    
+                    {documentFileName ? (
+                      <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200 text-xs">
+                        <span className="truncate font-semibold text-slate-800 flex items-center gap-1.5">
+                          <FileText className="w-4 h-4 text-forest" />
+                          {documentFileName}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="text-xs text-forest font-bold hover:underline ml-2 shrink-0"
+                        >
+                          बदलें
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="w-full py-2 px-3 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-100 flex items-center justify-center gap-1.5 shadow-2xs"
+                        >
+                          <Upload className="w-4 h-4 text-forest" />
+                          दस्तावेज़ अपलोड करें (Upload Document)
+                        </button>
+                        <span className="text-[10px] text-slate-400 block">या</span>
+                        <button
+                          type="button"
+                          onClick={handleUseSampleDoc}
+                          className="text-[11px] text-forest font-bold hover:underline"
+                        >
+                          📄 नमूना खसरा-खतौनी उपयोग करें (Use Mock Land Record)
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {signupError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                    <span>{signupError}</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full bg-[#1A4D2E] hover:bg-[#133c23] text-white font-extrabold text-sm py-3.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 active:scale-98"
+                >
+                  <span>पंजीकरण सबमिट करें (Submit Registration)</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </form>
+            )}
           </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* LOGIN MODE */}
+        {/* ========================================================= */}
+        {mode === 'LOGIN' && (
+          <form onSubmit={handleLoginSubmit} className="w-full space-y-4">
+            <div className="text-center mb-2">
+              <h2 className="text-base font-extrabold text-slate-800">
+                किसान लॉगिन (Farmer Login)
+              </h2>
+              <p className="text-xs text-slate-500">
+                पंजीकृत मोबाइल नंबर और पासवर्ड से प्रवेश करें
+              </p>
+            </div>
+
+            {/* Mobile Number */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Mobile Number / मोबाइल नंबर
+              </label>
+              <div className="flex w-full border rounded-xl overflow-hidden bg-gray-50 focus-within:border-green-600 focus-within:bg-white transition-colors">
+                <span className="p-3.5 font-bold text-gray-500 border-r bg-soil-100 text-sm">
+                  +91
+                </span>
+                <input
+                  type="tel"
+                  maxLength={10}
+                  required
+                  value={loginPhone}
+                  onChange={(e) => setLoginPhone(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Enter 10-digit number"
+                  className="w-full p-3.5 bg-transparent outline-none font-bold text-base text-slate-900"
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Password / पासवर्ड
+                </label>
+                <span className="text-[10px] text-slate-400 font-medium">डिफ़ॉल्ट: password123</span>
+              </div>
+              <div className="relative flex items-center">
+                <span className="absolute left-3.5 text-slate-400">
+                  <Lock className="w-4 h-4" />
+                </span>
+                <input
+                  type="password"
+                  required
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  className="w-full bg-soil-50 border border-slate-200 text-slate-900 font-bold text-sm rounded-xl pl-10 pr-3.5 py-3.5 focus:outline-none focus:ring-2 focus:ring-forest focus:bg-white transition-all"
+                />
+              </div>
+            </div>
+
+            {loginError && (
+              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-start gap-2.5 animate-fade-in shadow-2xs">
+                <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{loginError}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full bg-[#1A4D2E] text-white font-extrabold text-sm p-4 rounded-xl flex justify-center items-center gap-2 hover:bg-[#133c23] transition-colors shadow-md active:scale-98"
+            >
+              <span>लॉगिन करें (Log In)</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </form>
+        )}
+
+        {/* ========================================================= */}
+        {/* OFFICER TESTING SHORTCUT ONLY (Per Requirement #5) */}
+        {/* ========================================================= */}
+        <div className="w-full mt-8 border-t border-slate-200 pt-6">
+          <p className="text-center text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3">
+            Testing & Verification Console
+          </p>
+          <button
+            type="button"
+            onClick={handleOfficerQuickLogin}
+            className="w-full p-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-between border border-slate-700 shadow-sm transition-all group active:scale-98"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center text-amber-400 border border-slate-700">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <strong className="block text-xs font-bold text-white">
+                  Mandi Officer Portal (S.P. Varma)
+                </strong>
+                <span className="text-[10px] text-slate-400">
+                  Switch to Officer Console to Review & Approve Farmers
+                </span>
+              </div>
+            </div>
+            <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" />
+          </button>
         </div>
 
       </div>
 
       <div className="max-w-md w-full mx-auto text-center text-slate-400 text-xs py-2 border-t border-slate-100">
-        <span>Krishi Mitra Gateway • Demonstration & Hackathon Mode</span>
+        <span>Krishi Mitra National Portal • Kisan Registration & Authentication Gateway</span>
       </div>
 
     </div>

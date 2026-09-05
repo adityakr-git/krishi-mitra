@@ -70,11 +70,23 @@ export const authService = {
   createVerifiedSession(phone: string, firebaseUid?: string): { success: boolean; user?: UserProfile } {
     const cleanPhone = phone.replace(/\D/g, '');
 
+    // Check registered_farmers in localStorage for dynamic name
+    let registeredName: string | undefined;
+    if (typeof window !== 'undefined') {
+      try {
+        const farmers = JSON.parse(localStorage.getItem('registered_farmers') || '[]');
+        const f = farmers.find((item: any) => item.phone === cleanPhone);
+        if (f && f.name) registeredName = f.name;
+      } catch {
+        // ignore
+      }
+    }
+
     // Lookup known registered user or default to new Farmer
     const user: UserProfile = KNOWN_USERS[cleanPhone] || {
       id: firebaseUid || `usr_${Date.now()}`,
       phone: cleanPhone,
-      name: 'Kisan Mitra',
+      name: registeredName || 'Kisan Mitra',
       role: 'FARMER',
       village: 'Gram Badshahpur',
       district: 'Gurugram, Haryana',
@@ -85,12 +97,18 @@ export const authService = {
       mandiName: 'Badshahpur APMC Mandi'
     };
 
+    if (registeredName && user.role === 'FARMER') {
+      user.name = registeredName;
+    }
+
     localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    localStorage.setItem('krishi_mitra_session', user.role.toLowerCase());
     return { success: true, user };
   },
 
   logout(): void {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('krishi_mitra_session');
     if (typeof window !== 'undefined') {
       const win = window as any;
       if (win.recaptchaVerifier) {

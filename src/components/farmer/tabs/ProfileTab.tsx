@@ -34,16 +34,22 @@ export const ProfileTab: React.FC = () => {
   const farmerPhone = user?.phone || '9876543210';
   const kisanId = user?.kisanId || 'HR-GUR-2024-8841';
 
+  // 1. Get the current active role from the session (saved during login)
+  const activeRole = localStorage.getItem('krishi_mitra_session') || 'default';
+
+  // 2. Create a dynamic storage key based on the role
+  const PROFILE_PIC_KEY = `krishi_mitra_profile_pic_${activeRole}`;
+
   const [profilePic, setProfilePic] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load saved profile pic on mount
   useEffect(() => {
-    const savedPic = localStorage.getItem('krishi_mitra_profile_pic');
+    // 3. Load ONLY the picture belonging to this specific role
+    const savedPic = localStorage.getItem(PROFILE_PIC_KEY);
     if (savedPic) {
       setProfilePic(savedPic);
     }
-  }, []);
+  }, [PROFILE_PIC_KEY]);
 
   // Handle Image Selection and Convert to Base64 for LocalStorage
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -53,7 +59,9 @@ export const ProfileTab: React.FC = () => {
       reader.onloadend = () => {
         const base64String = reader.result as string;
         setProfilePic(base64String);
-        localStorage.setItem('krishi_mitra_profile_pic', base64String);
+        
+        // 4. Save the picture to this specific role's key
+        localStorage.setItem(PROFILE_PIC_KEY, base64String);
         window.dispatchEvent(new Event('krishi_mitra_profile_updated'));
       };
       reader.readAsDataURL(file);

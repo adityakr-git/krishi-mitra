@@ -26,6 +26,10 @@ export function App() {
 
   useEffect(() => {
     checkAuth();
+    // Clean legacy generic profile pic key if present to prevent cross-persona pollution
+    if (typeof window !== 'undefined' && localStorage.getItem('krishi_mitra_profile_pic')) {
+      localStorage.removeItem('krishi_mitra_profile_pic');
+    }
   }, []);
 
   // 1. Native-Style Animated Splash Screen (Initial Entry)

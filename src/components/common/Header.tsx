@@ -28,7 +28,11 @@ export const Header: React.FC<HeaderProps> = ({
 
   React.useEffect(() => {
     const updatePic = () => {
-      const saved = localStorage.getItem('krishi_mitra_profile_pic');
+      // 1. Get current active role from session or user profile
+      const activeRole = localStorage.getItem('krishi_mitra_session') || user?.role?.toLowerCase() || 'default';
+      // 2. Create dynamic storage key based on role
+      const PROFILE_PIC_KEY = `krishi_mitra_profile_pic_${activeRole}`;
+      const saved = localStorage.getItem(PROFILE_PIC_KEY);
       setProfilePic(saved);
     };
     updatePic();
@@ -39,7 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
       window.removeEventListener('krishi_mitra_profile_updated', updatePic);
       window.removeEventListener('storage', updatePic);
     };
-  }, []);
+  }, [user?.role]);
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm transition-colors">

@@ -14,13 +14,20 @@ import {
   Send,
   Sparkles,
   Check,
-  AlertCircle
+  AlertCircle,
+  UserCheck,
+  FileText,
+  Eye,
+  X,
+  ExternalLink,
+  ShieldCheck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useProcurementStore } from '../../store/useProcurementStore';
 import { getTranslation } from '../../i18n/translations';
 import { Token } from '../../types';
 import { getApiUrl } from '../../utils/api';
+import { RegisteredFarmer } from '../auth/LoginView';
 
 export const OfficerDashboard: React.FC = () => {
   const { 
@@ -38,6 +45,54 @@ export const OfficerDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcastSent, setBroadcastSent] = useState(false);
+
+  // Section Switcher: Mandi Yard Operations vs Farmer KYC Verification
+  const [dashboardSection, setDashboardSection] = useState<'OPERATIONS' | 'KYC'>('KYC');
+  const [registeredFarmers, setRegisteredFarmers] = useState<RegisteredFarmer[]>([]);
+  const [selectedDocFarmer, setSelectedDocFarmer] = useState<RegisteredFarmer | null>(null);
+  const [kycTab, setKycTab] = useState<'PENDING' | 'APPROVED'>('PENDING');
+
+  const loadRegisteredFarmers = () => {
+    try {
+      const data: RegisteredFarmer[] = JSON.parse(localStorage.getItem('registered_farmers') || '[]');
+      setRegisteredFarmers(data);
+    } catch {
+      setRegisteredFarmers([]);
+    }
+  };
+
+  React.useEffect(() => {
+    loadRegisteredFarmers();
+    window.addEventListener('registered_farmers_updated', loadRegisteredFarmers);
+    window.addEventListener('storage', loadRegisteredFarmers);
+    return () => {
+      window.removeEventListener('registered_farmers_updated', loadRegisteredFarmers);
+      window.removeEventListener('storage', loadRegisteredFarmers);
+    };
+  }, []);
+
+  const pendingFarmers = registeredFarmers.filter(f => f.status === 'pending');
+  const approvedFarmers = registeredFarmers.filter(f => f.status === 'approved');
+
+  // 4. Officer Approval Action per requirement specification
+  const handleApproveFarmer = (farmerPhone: string) => {
+    const farmers: RegisteredFarmer[] = JSON.parse(localStorage.getItem('registered_farmers') || '[]');
+    const updatedFarmers = farmers.map(f => {
+      if (f.phone === farmerPhone) {
+        return { ...f, status: 'approved' as const };
+      }
+      return f;
+    });
+    localStorage.setItem('registered_farmers', JSON.stringify(updatedFarmers));
+    window.dispatchEvent(new Event('registered_farmers_updated'));
+    setRegisteredFarmers(updatedFarmers);
+    confetti({
+      particleCount: 90,
+      spread: 60,
+      origin: { y: 0.6 }
+    });
+    alert("किसान खाता सफलतापूर्वक सत्यापित हो गया है! (Farmer account approved successfully!)");
+  };
 
   // Selected Token for Weighing & Inspection Modal
   const [inspectingToken, setInspectingToken] = useState<Token | null>(null);
@@ -137,35 +192,268 @@ export const OfficerDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Key Mandi Metrics Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] text-slate-500 block font-medium">Trolleys in Yard</span>
-          <span className="text-2xl font-black text-slate-900">{activeMandi.currentQueueCount}</span>
-          <span className="text-[10px] text-slate-400 block">Cap: {activeMandi.capacityMax} Max</span>
-        </div>
+      {/* Section Switcher: KYC Verification vs Mandi Operations */}
+      <div className="bg-white rounded-2xl p-2 shadow-sm border border-slate-200 flex items-center gap-2">
+        <button
+          onClick={() => setDashboardSection('KYC')}
+          className={`flex-1 py-3 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+            dashboardSection === 'KYC'
+              ? 'bg-forest text-white shadow-md'
+              : 'text-slate-600 hover:bg-soil-50 hover:text-slate-900'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          <span>KYC Verification (किसान सत्यापन)</span>
+          {pendingFarmers.length > 0 && (
+            <span className="bg-amber-400 text-amber-950 text-[11px] font-black px-2 py-0.5 rounded-full ml-1 animate-pulse">
+              {pendingFarmers.length} Pending
+            </span>
+          )}
+        </button>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] text-slate-500 block font-medium">Avg Processing Velocity</span>
-          <span className="text-2xl font-black text-forest">6.0 m</span>
-          <span className="text-[10px] text-emerald-600 block font-semibold">Per Electronic Scale</span>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] text-slate-500 block font-medium">Today Procured</span>
-          <span className="text-2xl font-black text-slate-900">{activeMandi.todaysProcuredQuintals} Qtl</span>
-          <span className="text-[10px] text-slate-400 block">Wheat & Mustard</span>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-          <span className="text-[11px] text-slate-500 block font-medium">DBT Approval Rate</span>
-          <span className="text-2xl font-black text-emerald-700">100%</span>
-          <span className="text-[10px] text-emerald-600 block font-semibold">Zero Cash Disputes</span>
-        </div>
+        <button
+          onClick={() => setDashboardSection('OPERATIONS')}
+          className={`flex-1 py-3 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+            dashboardSection === 'OPERATIONS'
+              ? 'bg-forest text-white shadow-md'
+              : 'text-slate-600 hover:bg-soil-50 hover:text-slate-900'
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          <span>Yard Operations (मंडी संचालन)</span>
+          <span className="bg-slate-100 text-slate-700 text-[11px] font-bold px-2 py-0.5 rounded-full ml-1">
+            {allTokens.length} Tokens
+          </span>
+        </button>
       </div>
 
-      {/* Main Queue Management Section */}
-      <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
+      {/* Section 1: Farmer KYC Verification Portal */}
+      {dashboardSection === 'KYC' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* KYC Summary Stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-slate-500 block font-medium">कुल पंजीकृत किसान (Total Registered)</span>
+                <span className="text-2xl font-black text-slate-900">{registeredFarmers.length}</span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-soil-100 text-slate-700 flex items-center justify-center">
+                <FileText className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-amber-200 bg-amber-50/40 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-amber-800 block font-bold">सत्यापन हेतु लंबित (Pending Review)</span>
+                <span className="text-2xl font-black text-amber-900">{pendingFarmers.length}</span>
+                <span className="text-[10px] text-amber-700 block">Action required to unlock login</span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                <Clock className="w-5 h-5" />
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-emerald-800 block font-bold">सत्यापित व सक्रिय (Approved & Active)</span>
+                <span className="text-2xl font-black text-emerald-900">{approvedFarmers.length}</span>
+                <span className="text-[10px] text-emerald-700 block">Can log in to portal</span>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          {/* KYC Filter Tabs */}
+          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 bg-soil-100 p-1 rounded-xl">
+                <button
+                  onClick={() => setKycTab('PENDING')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    kycTab === 'PENDING'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Pending Review ({pendingFarmers.length})
+                </button>
+                <button
+                  onClick={() => setKycTab('APPROVED')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    kycTab === 'APPROVED'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Approved ({approvedFarmers.length})
+                </button>
+              </div>
+
+              <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+                {kycTab === 'PENDING' ? 'सत्यापन के लिए लंबित किसान खाते' : 'सत्यापित किसान खाते'}
+              </span>
+            </div>
+
+            {/* List of Farmers */}
+            {kycTab === 'PENDING' && (
+              <div className="space-y-4">
+                {pendingFarmers.length === 0 ? (
+                  <div className="text-center py-12 bg-soil-50 rounded-2xl border border-dashed border-slate-200">
+                    <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-2" />
+                    <h4 className="font-extrabold text-slate-900 text-base">कोई लंबित आवेदन नहीं (No Pending Applications)</h4>
+                    <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                      All registered farmers have been reviewed and approved. New farmer signups will appear here automatically.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pendingFarmers.map((farmer) => (
+                      <div
+                        key={farmer.phone}
+                        className="bg-white border-2 border-amber-200 hover:border-amber-300 rounded-2xl p-5 shadow-sm space-y-4 transition-all"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-black text-slate-900 text-base">{farmer.name}</h3>
+                              <span className="bg-amber-100 text-amber-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-amber-300">
+                                Pending KYC
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-600 font-medium mt-0.5">
+                              📞 +91 {farmer.phone} • Farmer ID: <span className="font-bold text-slate-800">#{farmer.id}</span>
+                            </p>
+                          </div>
+                          <span className="text-[11px] font-bold text-slate-400 bg-soil-100 px-2 py-1 rounded-lg">
+                            Khasra / Aadhaar
+                          </span>
+                        </div>
+
+                        {/* Document Preview Snippet Box */}
+                        <div className="bg-soil-50 rounded-xl p-3 border border-slate-200 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-forest shrink-0">
+                              <FileText className="w-5 h-5" />
+                            </div>
+                            <div className="truncate">
+                              <span className="text-xs font-bold text-slate-900 block truncate">
+                                Aadhaar & Land Record (भू-अभिलेख)
+                              </span>
+                              <span className="text-[10px] text-slate-500 block">
+                                Format: Verified Digital Document
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDocFarmer(farmer)}
+                            className="bg-white hover:bg-soil-100 text-slate-700 border border-slate-200 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm transition-all shrink-0"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-forest" />
+                            <span>View Document (दस्तावेज़ देखें)</span>
+                          </button>
+                        </div>
+
+                        {/* Massive Approve & Authenticate Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleApproveFarmer(farmer.phone)}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-black text-sm sm:text-base py-3.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                        >
+                          <ShieldCheck className="w-5 h-5 text-emerald-200" />
+                          <span>Approve & Authenticate (सत्यापित करें)</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Approved Tab */}
+            {kycTab === 'APPROVED' && (
+              <div className="space-y-4">
+                {approvedFarmers.length === 0 ? (
+                  <div className="text-center py-10 text-slate-500 text-xs">
+                    No approved farmers found.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {approvedFarmers.map((farmer) => (
+                      <div
+                        key={farmer.phone}
+                        className="bg-white border border-emerald-200 rounded-2xl p-4 shadow-sm space-y-3"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-bold text-slate-900 text-sm">{farmer.name}</h3>
+                              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+                                <Check className="w-3 h-3" /> Approved
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              📞 +91 {farmer.phone} • ID: #{farmer.id}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDocFarmer(farmer)}
+                            className="text-xs text-forest hover:underline flex items-center gap-1 font-bold"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>View Doc</span>
+                          </button>
+                        </div>
+                        <div className="text-[11px] text-emerald-700 font-semibold bg-emerald-50/80 p-2 rounded-xl border border-emerald-100 flex items-center gap-1.5">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>Account authenticated. Farmer can log in with their phone & password.</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Section 2: Mandi Yard Operations */}
+      {dashboardSection === 'OPERATIONS' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Key Mandi Metrics Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <span className="text-[11px] text-slate-500 block font-medium">Trolleys in Yard</span>
+              <span className="text-2xl font-black text-slate-900">{activeMandi.currentQueueCount}</span>
+              <span className="text-[10px] text-slate-400 block">Cap: {activeMandi.capacityMax} Max</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <span className="text-[11px] text-slate-500 block font-medium">Avg Processing Velocity</span>
+              <span className="text-2xl font-black text-forest">6.0 m</span>
+              <span className="text-[10px] text-emerald-600 block font-semibold">Per Electronic Scale</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <span className="text-[11px] text-slate-500 block font-medium">Today Procured</span>
+              <span className="text-2xl font-black text-slate-900">{activeMandi.todaysProcuredQuintals} Qtl</span>
+              <span className="text-[10px] text-slate-400 block">Wheat & Mustard</span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <span className="text-[11px] text-slate-500 block font-medium">DBT Approval Rate</span>
+              <span className="text-2xl font-black text-emerald-700">100%</span>
+              <span className="text-[10px] text-emerald-600 block font-semibold">Zero Cash Disputes</span>
+            </div>
+          </div>
+
+          {/* Main Queue Management Section */}
+          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
         
         {/* Controls bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
@@ -356,6 +644,90 @@ export const OfficerDashboard: React.FC = () => {
           </p>
         )}
       </div>
+    </div>
+  )}
+
+      {/* Document Preview Modal */}
+      {selectedDocFarmer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="p-4 bg-forest text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-forest-accent" />
+                <div>
+                  <h3 className="font-bold text-base">
+                    दस्तावेज़ सत्यापन • {selectedDocFarmer.name}
+                  </h3>
+                  <p className="text-xs text-forest-pale">
+                    Phone: +91 {selectedDocFarmer.phone} • Farmer ID: #{selectedDocFarmer.id}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedDocFarmer(null)}
+                className="text-forest-pale hover:text-white p-1 rounded-lg hover:bg-forest-light transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="flex items-center justify-between bg-soil-50 p-3 rounded-xl border border-slate-200 text-xs">
+                <div>
+                  <span className="text-slate-500 block">सत्यापन स्थिति (Status):</span>
+                  <span className={`font-black uppercase ${selectedDocFarmer.status === 'approved' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {selectedDocFarmer.status === 'approved' ? '✓ स्वीकृत (Approved)' : '⏳ लंबित समीक्षा (Pending Review)'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">दस्तावेज़ प्रकार (Type):</span>
+                  <span className="font-bold text-slate-900">Aadhaar / भू-अभिलेख (खसरा-खतौनी)</span>
+                </div>
+              </div>
+
+              {/* Document Image Render */}
+              <div className="border-2 border-slate-200 rounded-2xl overflow-hidden bg-slate-50 flex items-center justify-center p-2 shadow-inner">
+                <img
+                  src={selectedDocFarmer.document}
+                  alt={`Document for ${selectedDocFarmer.name}`}
+                  className="w-full h-auto max-h-[380px] object-contain rounded-xl"
+                />
+              </div>
+
+              <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <span>
+                  मंडी अधिकारी सत्यापन दिशानिर्देश: कृपया सुनिश्चित करें कि खसरा संख्या, भूमि रकबा और किसान का नाम आधिकारिक राजस्व रिकॉर्ड के अनुरूप हैं।
+                </span>
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSelectedDocFarmer(null)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-600 hover:bg-soil-50"
+                >
+                  Close (बंद करें)
+                </button>
+                {selectedDocFarmer.status === 'pending' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleApproveFarmer(selectedDocFarmer.phone);
+                      setSelectedDocFarmer(null);
+                    }}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md flex items-center gap-2"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Approve Immediately (तुरंत सत्यापित करें)</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Inspection & Weighbridge Modal */}
       {inspectingToken && (
