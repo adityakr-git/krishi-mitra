@@ -52,7 +52,28 @@ export const OfficerDashboard: React.FC = () => {
   const [selectedDocFarmer, setSelectedDocFarmer] = useState<RegisteredFarmer | null>(null);
   const [kycTab, setKycTab] = useState<'PENDING' | 'APPROVED'>('PENDING');
 
-  const loadRegisteredFarmers = () => {
+  const loadRegisteredFarmers = async () => {
+    try {
+      // 1. Fetch pending & approved directly from Neon Backend API
+      const [pendingRes, approvedRes] = await Promise.all([
+        fetch(getApiUrl('/api/officer/pending-kyc')),
+        fetch(getApiUrl('/api/officer/approved-kyc'))
+      ]);
+
+      if (pendingRes.ok && approvedRes.ok) {
+        const pendingData: RegisteredFarmer[] = await pendingRes.json();
+        const approvedData: RegisteredFarmer[] = await approvedRes.json();
+        const combined: RegisteredFarmer[] = [...pendingData, ...approvedData];
+        if (combined.length > 0) {
+          setRegisteredFarmers(combined);
+          localStorage.setItem('registered_farmers', JSON.stringify(combined));
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Backend KYC fetch error, using local fallback:', err);
+    }
+
     try {
       const data: RegisteredFarmer[] = JSON.parse(localStorage.getItem('registered_farmers') || '[]');
       setRegisteredFarmers(data);
@@ -74,11 +95,24 @@ export const OfficerDashboard: React.FC = () => {
   const pendingFarmers = registeredFarmers.filter(f => f.status === 'pending');
   const approvedFarmers = registeredFarmers.filter(f => f.status === 'approved');
 
-  // 4. Officer Approval Action per requirement specification
-  const handleApproveFarmer = (farmerPhone: string) => {
+  // 4. Officer Approval Action per requirement specification with Neon Backend
+  const handleApproveFarmer = async (farmerIdentifier: string) => {
+    const farmer = registeredFarmers.find(f => f.phone === farmerIdentifier || f.id === farmerIdentifier);
+    const farmerId = farmer?.id;
+
+    if (farmerId) {
+      try {
+        await fetch(getApiUrl(`/api/officer/approve/${farmerId}`), {
+          method: 'POST'
+        });
+      } catch (err) {
+        console.warn('Backend approval failed, updating locally:', err);
+      }
+    }
+
     const farmers: RegisteredFarmer[] = JSON.parse(localStorage.getItem('registered_farmers') || '[]');
     const updatedFarmers = farmers.map(f => {
-      if (f.phone === farmerPhone) {
+      if (f.phone === farmerIdentifier || f.id === farmerIdentifier) {
         return { ...f, status: 'approved' as const };
       }
       return f;
@@ -86,6 +120,8 @@ export const OfficerDashboard: React.FC = () => {
     localStorage.setItem('registered_farmers', JSON.stringify(updatedFarmers));
     window.dispatchEvent(new Event('registered_farmers_updated'));
     setRegisteredFarmers(updatedFarmers);
+    await loadRegisteredFarmers();
+
     confetti({
       particleCount: 90,
       spread: 60,
