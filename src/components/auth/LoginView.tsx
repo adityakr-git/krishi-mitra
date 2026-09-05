@@ -3,7 +3,9 @@ import { authService, UserProfile } from '../../services/authService';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useProcurementStore } from '../../store/useProcurementStore';
 import { Language } from '../../types';
-import { API_BASE_URL, getApiUrl } from '../../utils/api';
+
+// Hardcoded backend API URL for local development
+const API_BASE_URL = 'http://localhost:5000/api';
 import { 
   Globe, 
   ShieldCheck, 
@@ -114,6 +116,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         })
       });
 
+      // ADD THIS CHECK BEFORE response.json()
+      if (!response.ok) {
+        const text = await response.text();
+        console.error("Server returned non-200 status:", text);
+        let errMsg = `HTTP error! status: ${response.status}`;
+        try {
+          const errJson = JSON.parse(text);
+          if (errJson && errJson.error) errMsg = errJson.error;
+        } catch {}
+        throw new Error(errMsg);
+      }
+
       const data = await response.json();
 
       if (data.success) {
@@ -126,10 +140,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         setSignupError(data.error || "Signup failed.");
         alert(data.error || "Signup failed.");
       }
-    } catch (error) {
-      console.error("Signup Error:", error);
-      setSignupError("सर्वर से कनेक्ट नहीं हो सका। (Cannot connect to server)");
-      alert("सर्वर से कनेक्ट नहीं हो सका। (Cannot connect to server)");
+    } catch (error: any) {
+      console.error("🔥 FULL SIGNUP ERROR:", error);
+      alert("सर्वर एरर: " + (error?.message || error) + " (Check console F12)");
+      setSignupError("सर्वर एरर: " + (error?.message || error) + " (Check console F12)");
     } finally {
       setIsSubmitting(false);
     }
@@ -158,6 +172,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
           password: loginPassword
         })
       });
+
+      // ADD THIS CHECK BEFORE response.json()
+      if (!response.ok) {
+        const text = await response.text();
+        console.error("Server returned non-200 status:", text);
+        let errMsg = `HTTP error! status: ${response.status}`;
+        try {
+          const errJson = JSON.parse(text);
+          if (errJson && errJson.error) errMsg = errJson.error;
+        } catch {}
+        throw new Error(errMsg);
+      }
 
       const data = await response.json();
 
@@ -188,10 +214,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
         setLoginError(data.error || "गलत क्रेडेंशियल्स। (Invalid credentials)");
         alert(data.error || "गलत क्रेडेंशियल्स। (Invalid credentials)");
       }
-    } catch (error) {
-      console.error("Login Error:", error);
-      setLoginError("सर्वर से कनेक्ट नहीं हो सका। (Cannot connect to server)");
-      alert("सर्वर से कनेक्ट नहीं हो सका। (Cannot connect to server)");
+    } catch (error: any) {
+      console.error("🔥 FULL LOGIN ERROR:", error);
+      alert("सर्वर एरर: " + (error?.message || error) + " (Check console F12)");
+      setLoginError("सर्वर एरर: " + (error?.message || error) + " (Check console F12)");
     } finally {
       setIsSubmitting(false);
     }
