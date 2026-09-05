@@ -11,10 +11,17 @@ const server = http.createServer(app);
 
 // CORS Configuration
 app.use(cors({
-  origin: '*',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'https://krishi-mitra-1c656.web.app',
+    /^http:\/\/localhost(:\d+)?$/,
+    /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+    /^http:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/,
+    /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
 }));
 
 app.use(express.json({ limit: '10mb' })); // Increased limit for document uploads
@@ -22,7 +29,15 @@ app.use(express.json({ limit: '10mb' })); // Increased limit for document upload
 // Socket.io Setup for Real-time Mandi Updates
 const io = new SocketIOServer(server, {
   cors: {
-    origin: '*',
+    origin: [
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'https://krishi-mitra-1c656.web.app',
+      /^http:\/\/localhost(:\d+)?$/,
+      /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+      /^http:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/,
+      /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
   },
