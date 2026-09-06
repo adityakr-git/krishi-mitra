@@ -237,7 +237,12 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           </div>
 
           {/* Dynamic 5-Step Procurement Progress Tracker */}
-          <ProcurementTracker farmerId={activeBooking.farmerId || displayToken.farmerId} tokenId={activeBooking.id || displayToken.id} />
+          <ProcurementTracker 
+            bookingId={activeBooking?.id || displayToken?.id}
+            status={activeBooking?.status || displayToken?.status}
+            farmerId={activeBooking?.farmerId || displayToken?.farmerId}
+            tokenId={activeBooking?.id || displayToken?.id}
+          />
         </div>
       )}
 

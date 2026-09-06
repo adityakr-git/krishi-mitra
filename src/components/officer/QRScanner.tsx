@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { Camera, CheckCircle2, AlertCircle, RefreshCw, ArrowRight, ShieldCheck, X } from 'lucide-react';
 import { API_BASE_URL } from '../../utils/api';
@@ -25,29 +25,50 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, onClose }) 
     setErrorMessage(null);
 
     let cleanId = rawCode.trim();
+    if (cleanId.startsWith('#')) {
+      cleanId = cleanId.substring(1).trim();
+    }
     if (cleanId.includes('TOKEN-')) {
       const match = cleanId.match(/TOKEN-([A-Za-z0-9-]+)/);
       if (match) cleanId = match[1].replace('A', 'A-');
     }
 
     try {
-      const apiUrl = (import.meta as any).env?.VITE_API_URL || API_BASE_URL;
-      const response = await fetch(`${apiUrl}/officer/scan-qr`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId: cleanId })
-      });
+      const apiUrl = (import.meta as any).env?.VITE_BACKEND_URL || (import.meta as any).env?.VITE_API_URL || API_BASE_URL;
+      
+      let data: any = null;
+      try {
+        const response = await fetch(`${apiUrl}/officer/update-status`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bookingId: cleanId, newStatus: 'ARRIVED' })
+        });
+        if (response.ok) {
+          data = await response.json();
+        }
+      } catch (e) {
+        console.warn('PUT update-status failed, trying scan-qr fallback:', e);
+      }
 
-      const data = await response.json();
+      if (!data || !data.success) {
+        const scanRes = await fetch(`${apiUrl}/officer/scan-qr`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bookingId: cleanId })
+        });
+        if (scanRes.ok) {
+          data = await scanRes.json();
+        }
+      }
 
-      if (data.success) {
+      if (data && data.success) {
         playSuccessChime();
         setScanResult(cleanId);
-        setScanMessage(data.message || 'Kisan Gate Entry Successful. Status: Waiting');
+        setScanMessage(data.message || `किसान #${cleanId} का गेट प्रवेश सफल! स्थिति: प्रतीक्षारत (Waiting)`);
 
         markTokenArrived(cleanId);
         allTokens.forEach(t => {
-          if (t.id.toLowerCase() === cleanId.toLowerCase() || t.qrCodeData.includes(cleanId)) {
+          if (t.id.toLowerCase() === cleanId.toLowerCase() || (t.qrCodeData && t.qrCodeData.includes(cleanId))) {
             markTokenArrived(t.id);
           }
         });
@@ -57,7 +78,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, onClose }) 
         }
       } else {
         playAlertChime();
-        setErrorMessage(data.error || 'Invalid QR Code');
+        setErrorMessage(data?.error || 'Invalid QR Code');
       }
     } catch (err: any) {
       console.error('[QRScanner] API Error:', err);

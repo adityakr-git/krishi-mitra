@@ -33,6 +33,7 @@ import { getApiUrl, API_BASE_URL } from '../../utils/api';
 import { playSuccessChime } from '../../utils/soundEffects';
 import { RegisteredFarmer } from '../auth/LoginView';
 import { QRScanner } from './QRScanner';
+import { socketService } from '../../services/socketService';
 
 export const OfficerDashboard: React.FC = () => {
   const { 
@@ -143,31 +144,66 @@ export const OfficerDashboard: React.FC = () => {
 
   const activeMandi = mandis[0]; // Badshahpur Mandi
 
-  const [dbBookings, setDbBookings] = useState<any[]>([]);
+  const [liveBookings, setLiveBookings] = useState<any[]>([]);
 
   const fetchBookings = async () => {
     try {
-      const res = await fetch(getApiUrl('/api/bookings'));
+      const apiUrl = (import.meta as any).env?.VITE_BACKEND_URL || (import.meta as any).env?.VITE_API_URL || API_BASE_URL;
+      let res = await fetch(`${apiUrl}/officer/bookings`);
+      if (!res.ok) {
+        res = await fetch(`${apiUrl}/bookings`);
+      }
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.bookings)) {
-          setDbBookings(data.bookings);
+          setLiveBookings(data.bookings);
         }
       }
     } catch (err) {
-      console.warn('[OfficerDashboard] Fetch bookings error:', err);
+      console.warn('[OfficerDashboard] Fetch bookings error, trying fallback:', err);
+      try {
+        const res = await fetch(getApiUrl('/api/bookings'));
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.bookings)) {
+            setLiveBookings(data.bookings);
+          }
+        }
+      } catch (e) {}
     }
   };
 
   useEffect(() => {
     fetchBookings();
-    const interval = setInterval(fetchBookings, 15000);
+    const interval = setInterval(fetchBookings, 5000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Listen to real-time events for immediate table refresh
+  useEffect(() => {
+    const socket = socketService.getSocket();
+    if (!socket) return;
+
+    const handleRealtimeSync = () => {
+      fetchBookings();
+    };
+
+    socket.on('booking_status_updated', handleRealtimeSync);
+    socket.on('gate_entry_scanned', handleRealtimeSync);
+    socket.on('token_status_changed', handleRealtimeSync);
+    socket.on('new_booking_created', handleRealtimeSync);
+
+    return () => {
+      socket.off('booking_status_updated', handleRealtimeSync);
+      socket.off('gate_entry_scanned', handleRealtimeSync);
+      socket.off('token_status_changed', handleRealtimeSync);
+      socket.off('new_booking_created', handleRealtimeSync);
+    };
   }, []);
 
   const handleStatusUpdate = async (bookingId: string, nextStatus: string) => {
     try {
-      const apiUrl = (import.meta as any).env?.VITE_BACKEND_URL || API_BASE_URL;
+      const apiUrl = (import.meta as any).env?.VITE_BACKEND_URL || (import.meta as any).env?.VITE_API_URL || API_BASE_URL;
       const res = await fetch(`${apiUrl}/officer/update-status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -250,50 +286,33 @@ export const OfficerDashboard: React.FC = () => {
   };
 
   const displayTokens = useMemo(() => {
-    const map = new Map<string, any>();
-
-    // Initial store tokens
-    allTokens.forEach((t) => {
-      map.set(t.id, { ...t });
-    });
-
-    // Merge database bookings (overrides and additions)
-    dbBookings.forEach((b) => {
-      const existing = map.get(b.id);
-      if (existing) {
-        map.set(b.id, {
-          ...existing,
-          status: b.status,
-          crop: b.crop || existing.crop,
-          quantityQuintals: b.quantity || existing.quantityQuintals,
-          farmerName: b.farmerName || existing.farmerName,
-          farmerId: b.farmerId || existing.farmerId
-        });
-      } else {
-        map.set(b.id, {
+    if (liveBookings.length > 0) {
+      return liveBookings.map((b, idx) => {
+        const storeMatch = allTokens.find(t => t.id.toLowerCase() === b.id.toLowerCase());
+        return {
           id: b.id,
-          tokenNumber: 99,
-          farmerId: b.farmerId || 'HR-FARMER',
-          farmerName: b.farmerName || 'Kisan',
-          phone: '98765 00000',
-          village: 'Mandi Area',
-          crop: b.crop || 'Wheat',
-          cropVariety: 'Standard',
-          quantityQuintals: b.quantity || 40,
-          mandiId: b.mandiId || 'mandi-badshahpur',
-          mandiName: b.mandiName || 'Badshahpur APMC Mandi',
-          scheduledDate: 'Today',
-          scheduledTimeSlot: b.timeSlot || '11:00 AM - 12:00 PM',
-          queuePosition: b.status === 'ARRIVED' || b.status === 'WAITING' ? 1 : 2,
-          estimatedWaitMinutes: 5,
+          tokenNumber: storeMatch?.tokenNumber || (idx + 1),
+          farmerId: b.farmerId || storeMatch?.farmerId || 'HR-FARMER',
+          farmerName: b.farmerName || storeMatch?.farmerName || 'Kisan',
+          phone: storeMatch?.phone || '98765 00000',
+          village: storeMatch?.village || 'Mandi Area',
+          crop: b.crop || storeMatch?.crop || 'Wheat',
+          cropVariety: storeMatch?.cropVariety || 'Standard',
+          quantityQuintals: b.quantity || storeMatch?.quantityQuintals || 40,
+          mandiId: b.mandiId || storeMatch?.mandiId || 'mandi-badshahpur',
+          mandiName: b.mandiName || storeMatch?.mandiName || 'Badshahpur APMC Mandi',
+          scheduledDate: storeMatch?.scheduledDate || 'Today',
+          scheduledTimeSlot: b.timeSlot || storeMatch?.scheduledTimeSlot || '11:00 AM - 12:00 PM',
+          queuePosition: b.status === 'ARRIVED' || b.status === 'WAITING' ? idx + 1 : 0,
+          estimatedWaitMinutes: (idx + 1) * 5,
           status: b.status,
           createdAt: b.createdAt
-        });
-      }
-    });
+        };
+      });
+    }
 
-    return Array.from(map.values());
-  }, [allTokens, dbBookings]);
+    return allTokens;
+  }, [allTokens, liveBookings]);
 
   const filteredTokens = displayTokens.filter((token) => {
     const matchesSearch = 

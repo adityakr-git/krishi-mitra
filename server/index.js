@@ -244,7 +244,19 @@ app.post('/api/bookings', async (req, res) => {
   }
 });
 
-// 7. Get All Bookings
+// 7. Get All Bookings & Officer Bookings
+app.get('/api/officer/bookings', async (req, res) => {
+  try {
+    const bookings = await prisma.booking.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ success: true, bookings });
+  } catch (error) {
+    console.error('Fetch officer bookings error:', error);
+    res.status(500).json({ success: false, error: "Failed to fetch bookings" });
+  }
+});
+
 app.get('/api/bookings', async (req, res) => {
   try {
     const bookings = await prisma.booking.findMany({
@@ -253,7 +265,7 @@ app.get('/api/bookings', async (req, res) => {
     res.json({ success: true, bookings });
   } catch (error) {
     console.error('Fetch bookings error:', error);
-    res.status(500).json({ success: false, error: "बुकिंग प्राप्त करने में त्रुटि।" });
+    res.status(500).json({ success: false, error: "Failed to fetch bookings" });
   }
 });
 

@@ -8,6 +8,8 @@ import { socketService } from '../../services/socketService';
 interface ProcurementTrackerProps {
   farmerId?: string;
   tokenId?: string;
+  bookingId?: string;
+  status?: string;
   className?: string;
   compact?: boolean;
 }
@@ -32,22 +34,33 @@ const statusMap: Record<string, number> = {
 export const ProcurementTracker: React.FC<ProcurementTrackerProps> = ({
   farmerId,
   tokenId,
+  bookingId,
+  status,
   className = '',
   compact = false
 }) => {
   const { language } = useTranslation();
   const { activeToken } = useProcurementStore();
+  
+  const effectiveId = bookingId || tokenId || activeToken?.id || farmerId || 'A-184';
+  const initialStatus = status || activeToken?.status || 'BOOKED';
+
   const [currentStep, setCurrentStep] = useState<number>(() => {
-    if (activeToken?.status) {
-      return statusMap[activeToken.status] || 1;
-    }
-    return 1;
+    return statusMap[initialStatus] || 1;
   });
-  const [rawStatus, setRawStatus] = useState<string>(activeToken?.status || 'BOOKED');
+  const [rawStatus, setRawStatus] = useState<string>(initialStatus);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>('Just now');
 
-  const effectiveId = tokenId || activeToken?.id || farmerId || 'A-142';
+  // React to status prop changes
+  useEffect(() => {
+    if (status) {
+      setRawStatus(status);
+      if (statusMap[status]) {
+        setCurrentStep(statusMap[status]);
+      }
+    }
+  }, [status]);
 
   // 5 Canonical Procurement Steps
   const trackerSteps = [
@@ -61,7 +74,7 @@ export const ProcurementTracker: React.FC<ProcurementTrackerProps> = ({
   const fetchStatus = async () => {
     try {
       setIsRefreshing(true);
-      const apiUrl = (import.meta as any).env?.VITE_BACKEND_URL || API_BASE_URL;
+      const apiUrl = (import.meta as any).env?.VITE_BACKEND_URL || (import.meta as any).env?.VITE_API_URL || API_BASE_URL;
       const res = await fetch(`${apiUrl}/farmer/booking-status/${encodeURIComponent(effectiveId)}`);
       
       if (res.ok) {
@@ -84,8 +97,8 @@ export const ProcurementTracker: React.FC<ProcurementTrackerProps> = ({
   useEffect(() => {
     fetchStatus();
 
-    // Poll every 25 seconds for continuous live synchronization
-    const interval = setInterval(fetchStatus, 25000);
+    // Poll every 15 seconds for continuous live synchronization
+    const interval = setInterval(fetchStatus, 15000);
     return () => clearInterval(interval);
   }, [effectiveId]);
 
@@ -119,6 +132,12 @@ export const ProcurementTracker: React.FC<ProcurementTrackerProps> = ({
     };
   }, [effectiveId, farmerId, currentStep]);
 
+  // Human-friendly token ID formatting (e.g. A-184 or short ID)
+  const displayTokenId = bookingId || tokenId || (effectiveId && !effectiveId.startsWith('HR-') && effectiveId.length < 20 ? effectiveId : 'A-184');
+  const formattedId = displayTokenId.startsWith('KM-') || displayTokenId.length > 8 
+    ? displayTokenId.substring(0, 6).toUpperCase() 
+    : displayTokenId.toUpperCase();
+
   return (
     <div className={`bg-white rounded-3xl p-4 sm:p-5 shadow-xs border border-slate-200 space-y-4 ${className}`}>
       {/* Header bar */}
@@ -129,7 +148,7 @@ export const ProcurementTracker: React.FC<ProcurementTrackerProps> = ({
           </div>
           <div>
             <h2 className="text-xs sm:text-sm font-extrabold text-slate-900 uppercase tracking-wide">
-              {language === 'hi' ? 'खरीद की प्रगति' : 'Procurement Progress'} (#{effectiveId})
+              {language === 'hi' ? 'खरीद की प्रगति' : 'Procurement Progress'} (#{formattedId})
             </h2>
             <span className="text-[10px] text-slate-400 font-medium">
               {language === 'hi' ? `अंतिम अपडेट: ${lastUpdated}` : `Last updated: ${lastUpdated}`}
