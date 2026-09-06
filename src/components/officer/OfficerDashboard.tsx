@@ -23,7 +23,8 @@ import {
   ExternalLink,
   ShieldCheck,
   Camera,
-  QrCode
+  QrCode,
+  RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useProcurementStore } from '../../store/useProcurementStore';
@@ -47,13 +48,13 @@ export const OfficerDashboard: React.FC = () => {
     broadcastOfficerAlert
   } = useProcurementStore();
 
-  const [filterTab, setFilterTab] = useState<'ALL' | 'WAITING' | 'PROCESSING' | 'COMPLETED'>('ALL');
+  const [filterTab, setFilterTab] = useState<'ALL' | 'WAITING' | 'PROCESSING' | 'COMPLETED'>('WAITING');
   const [searchQuery, setSearchQuery] = useState('');
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcastSent, setBroadcastSent] = useState(false);
 
   // Section Switcher: Mandi Yard Operations vs Farmer KYC Verification vs QR Scanner
-  const [dashboardSection, setDashboardSection] = useState<'OPERATIONS' | 'KYC' | 'SCANNER'>('KYC');
+  const [dashboardSection, setDashboardSection] = useState<'OPERATIONS' | 'KYC' | 'SCANNER'>('OPERATIONS');
   const [registeredFarmers, setRegisteredFarmers] = useState<RegisteredFarmer[]>([]);
   const [selectedDocFarmer, setSelectedDocFarmer] = useState<RegisteredFarmer | null>(null);
   const [kycTab, setKycTab] = useState<'PENDING' | 'APPROVED'>('PENDING');
@@ -228,7 +229,7 @@ export const OfficerDashboard: React.FC = () => {
         return (
           <span className="text-slate-400 font-semibold text-xs inline-flex items-center gap-1 justify-end">
             <Clock className="w-3.5 h-3.5" />
-            <span>Waiting for Arrival</span>
+            <span>Scheduled</span>
           </span>
         );
 
@@ -238,9 +239,9 @@ export const OfficerDashboard: React.FC = () => {
           <button
             type="button"
             onClick={() => handleStatusUpdate(booking.id, 'QUALITY_CHECK')}
-            className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-lg text-xs shadow-xs transition-all flex items-center gap-1 ml-auto"
+            className="bg-purple-100 hover:bg-purple-200 text-purple-700 active:scale-95 font-bold px-3 py-1.5 rounded-lg text-xs shadow-xs transition-all flex items-center gap-1.5 ml-auto border border-purple-200 cursor-pointer"
           >
-            <span>Quality Pass</span>
+            <span>Quality Check</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         );
@@ -250,7 +251,7 @@ export const OfficerDashboard: React.FC = () => {
           <button
             type="button"
             onClick={() => handleStatusUpdate(booking.id, 'WEIGHED')}
-            className="bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-lg text-xs shadow-xs transition-all flex items-center gap-1 ml-auto"
+            className="bg-blue-100 hover:bg-blue-200 text-blue-700 active:scale-95 font-bold px-3 py-1.5 rounded-lg text-xs shadow-xs transition-all flex items-center gap-1.5 ml-auto border border-blue-200 cursor-pointer"
           >
             <span>Record Weight</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -264,70 +265,87 @@ export const OfficerDashboard: React.FC = () => {
           <button
             type="button"
             onClick={() => handleStatusUpdate(booking.id, 'PAID')}
-            className="bg-green-600 hover:bg-green-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-lg text-xs shadow-xs transition-all flex items-center gap-1 ml-auto"
+            className="bg-green-100 hover:bg-green-200 text-green-700 active:scale-95 font-bold px-3 py-1.5 rounded-lg text-xs shadow-xs transition-all flex items-center gap-1.5 ml-auto border border-green-200 cursor-pointer"
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Send DBT</span>
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Process Payment</span>
           </button>
         );
 
       case 'PAID':
       case 'COMPLETED':
         return (
-          <span className="text-emerald-700 font-black text-xs inline-flex items-center gap-1 justify-end">
+          <span className="text-emerald-700 font-black text-xs inline-flex items-center gap-1 justify-end bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             <span>Completed</span>
           </span>
         );
 
       default:
-        return null;
+        return (
+          <span className="text-slate-400 font-semibold text-xs inline-flex items-center gap-1 justify-end">
+            <Clock className="w-3.5 h-3.5" />
+            <span>Scheduled</span>
+          </span>
+        );
     }
   };
 
   const displayTokens = useMemo(() => {
-    if (liveBookings.length > 0) {
-      return liveBookings.map((b, idx) => {
-        const storeMatch = allTokens.find(t => t.id.toLowerCase() === b.id.toLowerCase());
-        return {
-          id: b.id,
-          tokenNumber: b.tokenNumber || storeMatch?.tokenNumber || (idx + 1),
-          farmerId: b.farmerId || storeMatch?.farmerId || 'HR-FARMER',
-          farmerName: b.farmerName || storeMatch?.farmerName || 'Kisan',
-          phone: storeMatch?.phone || '98765 00000',
-          village: storeMatch?.village || 'Mandi Area',
-          crop: b.crop || storeMatch?.crop || 'Wheat',
-          cropVariety: storeMatch?.cropVariety || 'Standard',
-          quantityQuintals: b.quantity || storeMatch?.quantityQuintals || 40,
-          mandiId: b.mandiId || storeMatch?.mandiId || 'mandi-badshahpur',
-          mandiName: b.mandiName || storeMatch?.mandiName || 'Badshahpur APMC Mandi',
-          scheduledDate: storeMatch?.scheduledDate || 'Today',
-          scheduledTimeSlot: b.timeSlot || storeMatch?.scheduledTimeSlot || '11:00 AM - 12:00 PM',
-          queuePosition: b.status === 'ARRIVED' || b.status === 'WAITING' ? idx + 1 : 0,
-          estimatedWaitMinutes: (idx + 1) * 5,
-          status: b.status,
-          createdAt: b.createdAt
-        };
-      });
-    }
+    return liveBookings.map((b, idx) => {
+      const farmerObj = b.farmer || {};
+      const farmerName = farmerObj.name || b.farmerName || 'Kisan';
+      const farmerId = farmerObj.id || b.farmerId || 'HR-FARMER';
+      const phone = farmerObj.phone || b.phone || '98765 00000';
+      const village = farmerObj.village || b.village || 'Mandi Area';
 
-    return allTokens;
-  }, [allTokens, liveBookings]);
+      return {
+        id: b.id,
+        tokenNumber: b.tokenNumber || b.id,
+        farmerId,
+        farmerName,
+        phone,
+        village,
+        crop: b.crop || 'Wheat (Kanak)',
+        cropVariety: 'Standard',
+        quantityQuintals: b.quantity || 40,
+        mandiId: b.mandiId || 'mandi-badshahpur',
+        mandiName: b.mandiName || 'Badshahpur APMC Mandi',
+        scheduledDate: 'Today',
+        scheduledTimeSlot: b.timeSlot || '11:00 AM - 12:00 PM',
+        queuePosition: b.status === 'ARRIVED' || b.status === 'WAITING' ? idx + 1 : 0,
+        estimatedWaitMinutes: (idx + 1) * 5,
+        status: b.status || 'BOOKED',
+        createdAt: b.createdAt
+      };
+    });
+  }, [liveBookings]);
 
-  const filteredTokens = displayTokens.filter((token) => {
-    const matchesSearch = 
-      (token.farmerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (token.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (String(token.tokenNumber || '')).toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (token.crop || '').toLowerCase().includes(searchQuery.toLowerCase());
+  const tabCounts = useMemo(() => {
+    return {
+      ALL: displayTokens.length,
+      WAITING: displayTokens.filter(t => t.status === 'ARRIVED' || t.status === 'WAITING').length,
+      PROCESSING: displayTokens.filter(t => t.status === 'QUALITY_CHECK' || t.status === 'WEIGHED' || t.status === 'WEIGHING' || t.status === 'PAYMENT_PROCESSING').length,
+      COMPLETED: displayTokens.filter(t => t.status === 'COMPLETED' || t.status === 'PAID').length
+    };
+  }, [displayTokens]);
 
-    if (!matchesSearch) return false;
+  const filteredTokens = useMemo(() => {
+    return displayTokens.filter((token) => {
+      const matchesSearch = 
+        (token.farmerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (token.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (String(token.tokenNumber || '')).toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (token.crop || '').toLowerCase().includes(searchQuery.toLowerCase());
 
-    if (filterTab === 'WAITING') return token.status === 'SCHEDULED' || token.status === 'ARRIVED' || token.status === 'WAITING' || token.status === 'BOOKED';
-    if (filterTab === 'PROCESSING') return token.status === 'QUALITY_CHECK' || token.status === 'WEIGHING' || token.status === 'WEIGHED' || token.status === 'PAYMENT_PROCESSING';
-    if (filterTab === 'COMPLETED') return token.status === 'COMPLETED' || token.status === 'PAID';
-    return true;
-  });
+      if (!matchesSearch) return false;
+
+      if (filterTab === 'WAITING') return token.status === 'ARRIVED' || token.status === 'WAITING';
+      if (filterTab === 'PROCESSING') return token.status === 'QUALITY_CHECK' || token.status === 'WEIGHING' || token.status === 'WEIGHED' || token.status === 'PAYMENT_PROCESSING';
+      if (filterTab === 'COMPLETED') return token.status === 'COMPLETED' || token.status === 'PAID';
+      return true;
+    });
+  }, [displayTokens, searchQuery, filterTab]);
 
   const handleCallNext = async () => {
     // 1. Advance local state
@@ -731,33 +749,51 @@ export const OfficerDashboard: React.FC = () => {
         {/* Controls bar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           
-          {/* Tab Filters */}
+          {/* Tab Filters with Count Badges */}
           <div className="flex items-center gap-1 bg-soil-100 p-1 rounded-xl">
             {(['ALL', 'WAITING', 'PROCESSING', 'COMPLETED'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setFilterTab(tab)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                   filterTab === tab
                     ? 'bg-white text-slate-900 shadow-sm'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                {tab}
+                <span>{tab}</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  filterTab === tab 
+                    ? 'bg-forest/10 text-forest' 
+                    : 'bg-slate-200/70 text-slate-600'
+                }`}>
+                  {tabCounts[tab]}
+                </span>
               </button>
             ))}
           </div>
 
-          {/* Search bar */}
-          <div className="relative w-full sm:w-64">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search farmer, token, crop..."
-              className="w-full bg-soil-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-forest"
-            />
-            <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-2" />
+          {/* Search & Refresh bar */}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search farmer, token, crop..."
+                className="w-full bg-soil-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-forest"
+              />
+              <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-2" />
+            </div>
+
+            <button
+              type="button"
+              onClick={fetchBookings}
+              className="p-2 text-slate-500 hover:text-forest bg-soil-50 hover:bg-forest-pale rounded-xl border border-slate-200 transition-all active:scale-95 shrink-0"
+              title="Refresh Bookings (ताज़ा करें)"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
           </div>
 
         </div>
@@ -777,83 +813,103 @@ export const OfficerDashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
-              {filteredTokens.map((token) => {
-                const isHero = token.id === 'A-142';
+              {filteredTokens.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Clock className="w-8 h-8 text-slate-300 stroke-[1.5]" />
+                      <p className="text-sm font-bold text-slate-600">
+                        {filterTab === 'ALL'
+                          ? 'कोई बुकिंग नहीं मिली (No bookings found)'
+                          : `कोई ${filterTab} टोकन नहीं (No ${filterTab.toLowerCase()} tokens)`}
+                      </p>
+                      <p className="text-xs text-slate-400 max-w-xs">
+                        {filterTab === 'WAITING'
+                          ? 'गेट पास QR कोड स्कैन होने पर टोकन यहाँ "Quality Check" एक्शन बटन के साथ दिखाई देंगे।'
+                          : 'Procurement status will update as rapid actions are performed.'}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredTokens.map((token) => {
+                  const isHero = token.id === 'A-142';
 
-                return (
-                  <tr
-                    key={token.id}
-                    className={`hover:bg-soil-50/80 transition-colors ${
-                      isHero ? 'bg-forest-pale/20 font-semibold' : ''
-                    }`}
-                  >
-                    <td className="py-3 px-3">
-                      <div>
-                        <span className="font-extrabold text-slate-900 text-sm block">
-                          #{token.tokenNumber || token.id}
-                        </span>
-                        {token.id && token.tokenNumber && token.id !== token.tokenNumber && (
-                          <span className="text-[9px] text-slate-400 font-mono block">
-                            ID: {token.id.length > 10 ? token.id.substring(0, 8) + '...' : token.id}
+                  return (
+                    <tr
+                      key={token.id}
+                      className={`hover:bg-soil-50/80 transition-colors ${
+                        isHero ? 'bg-forest-pale/20 font-semibold' : ''
+                      }`}
+                    >
+                      <td className="py-3 px-3">
+                        <div>
+                          <span className="font-extrabold text-slate-900 text-sm block">
+                            #{token.tokenNumber || token.id}
                           </span>
-                        )}
-                      </div>
-                    </td>
+                          {token.id && token.tokenNumber && token.id !== token.tokenNumber && (
+                            <span className="text-[9px] text-slate-400 font-mono block">
+                              ID: {token.id.length > 10 ? token.id.substring(0, 8) + '...' : token.id}
+                            </span>
+                          )}
+                        </div>
+                      </td>
 
-                    <td className="py-3 px-3">
-                      <div>
-                        <strong className="text-slate-900 block">{token.farmerName}</strong>
-                        <span className="text-[10px] text-slate-400">{token.farmerId}</span>
-                      </div>
-                    </td>
+                      <td className="py-3 px-3">
+                        <div>
+                          <strong className="text-slate-900 block">{token.farmerName}</strong>
+                          <span className="text-[10px] text-slate-400">{token.farmerId}</span>
+                        </div>
+                      </td>
 
-                    <td className="py-3 px-3">
-                      <div>
-                        <span className="text-slate-800 block">{token.crop}</span>
-                        <strong className="text-forest text-xs">{token.quantityQuintals} Qtl</strong>
-                      </div>
-                    </td>
+                      <td className="py-3 px-3">
+                        <div>
+                          <span className="text-slate-800 block">{token.crop}</span>
+                          <strong className="text-forest text-xs">{token.quantityQuintals} Qtl</strong>
+                        </div>
+                      </td>
 
-                    <td className="py-3 px-3 text-slate-600">
-                      {token.scheduledTimeSlot}
-                    </td>
+                      <td className="py-3 px-3 text-slate-600">
+                        {token.scheduledTimeSlot}
+                      </td>
 
-                    <td className="py-3 px-3">
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                        token.queuePosition === 0
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : token.queuePosition <= 2
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {token.queuePosition === 0 ? 'At Desk' : `#${token.queuePosition}`}
-                      </span>
-                    </td>
+                      <td className="py-3 px-3">
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                          token.queuePosition === 0
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : token.queuePosition <= 2
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {token.queuePosition === 0 ? 'At Desk' : `#${token.queuePosition}`}
+                        </span>
+                      </td>
 
-                    <td className="py-3 px-3">
-                      <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold tracking-tight ${
-                        token.status === 'COMPLETED' || token.status === 'PAID'
-                          ? 'bg-green-100 text-green-800'
-                          : token.status === 'PAYMENT_PROCESSING'
-                          ? 'bg-blue-100 text-blue-800'
-                          : token.status === 'ARRIVED' || token.status === 'WAITING'
-                          ? 'bg-purple-100 text-purple-800'
-                          : token.status === 'QUALITY_CHECK'
-                          ? 'bg-blue-100 text-blue-800'
-                          : token.status === 'WEIGHING' || token.status === 'WEIGHED'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {token.status}
-                      </span>
-                    </td>
+                      <td className="py-3 px-3">
+                        <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold tracking-tight ${
+                          token.status === 'COMPLETED' || token.status === 'PAID'
+                            ? 'bg-green-100 text-green-800'
+                            : token.status === 'PAYMENT_PROCESSING'
+                            ? 'bg-blue-100 text-blue-800'
+                            : token.status === 'ARRIVED' || token.status === 'WAITING'
+                            ? 'bg-purple-100 text-purple-800'
+                            : token.status === 'QUALITY_CHECK'
+                            ? 'bg-blue-100 text-blue-800'
+                            : token.status === 'WEIGHING' || token.status === 'WEIGHED'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {token.status}
+                        </span>
+                      </td>
 
-                    <td className="py-3 px-3 text-right">
-                      {renderRapidAction(token)}
-                    </td>
-                  </tr>
-                );
-              })}
+                      <td className="py-3 px-3 text-right">
+                        {renderRapidAction(token)}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

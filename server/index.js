@@ -255,13 +255,41 @@ const handleBookSlot = async (req, res) => {
 app.post('/api/farmer/book-slot', handleBookSlot);
 app.post('/api/bookings', handleBookSlot);
 
-// 7. Get All Bookings & Officer Bookings (Ordered by createdAt desc)
+// 7. Get All Bookings & Officer Bookings (Ordered by createdAt desc with farmer details)
 const handleGetBookings = async (req, res) => {
   try {
     const bookings = await prisma.booking.findMany({
       orderBy: { createdAt: 'desc' }
     });
-    res.json({ success: true, bookings });
+
+    // Fetch related farmer user data
+    const farmerIds = bookings.map(b => b.farmerId).filter(Boolean);
+    const users = await prisma.user.findMany({
+      where: {
+        OR: [
+          { id: { in: farmerIds } },
+          { phone: { in: farmerIds } }
+        ]
+      }
+    });
+
+    const userMap = new Map();
+    users.forEach(u => {
+      userMap.set(u.id, u);
+      userMap.set(u.phone, u);
+    });
+
+    const enrichedBookings = bookings.map(b => {
+      const u = userMap.get(b.farmerId);
+      const farmerName = b.farmerName || u?.name || 'Kisan';
+      return {
+        ...b,
+        farmerName,
+        farmer: u ? { id: u.id, name: u.name, phone: u.phone, village: u.village || 'Mandi Area' } : { id: b.farmerId, name: farmerName, phone: '98765 00000' }
+      };
+    });
+
+    res.json({ success: true, bookings: enrichedBookings });
   } catch (error) {
     console.error('Fetch officer bookings error:', error);
     res.status(500).json({ success: false, error: "Failed to fetch bookings" });

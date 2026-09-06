@@ -179,8 +179,8 @@ export const ProcurementTracker: React.FC<ProcurementTrackerProps> = ({
       <div className="relative pt-1 pb-1">
         <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
           <div
-            className="bg-gradient-to-r from-forest to-amber-500 h-full rounded-full transition-all duration-700 ease-out"
-            style={{ width: `${((currentStep - 1) / 4) * 100}%` }}
+            className="bg-gradient-to-r from-forest to-emerald-500 h-full rounded-full transition-all duration-700 ease-out"
+            style={{ width: (rawStatus === 'PAID' || rawStatus === 'COMPLETED') ? '100%' : `${((currentStep - 1) / 4) * 100}%` }}
           />
         </div>
       </div>
@@ -188,9 +188,10 @@ export const ProcurementTracker: React.FC<ProcurementTrackerProps> = ({
       {/* 5 Distinct Step Rows */}
       <div className="space-y-3 pt-1">
         {trackerSteps.map((step) => {
-          const isCompleted = step.id < currentStep;
-          const isCurrent = step.id === currentStep;
-          const isPending = step.id > currentStep;
+          const isAllPaid = rawStatus === 'PAID' || rawStatus === 'COMPLETED';
+          const isCompleted = isAllPaid ? true : step.id < currentStep;
+          const isCurrent = !isAllPaid && step.id === currentStep;
+          const isPending = !isAllPaid && step.id > currentStep;
 
           const label = language === 'hi' ? step.labelHi : step.labelEn;
           const desc = language === 'hi' ? step.descHi : step.descEn;

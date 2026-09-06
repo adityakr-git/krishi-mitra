@@ -68,7 +68,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
       
       if (res.ok) {
         const data = await res.json();
-        if (data.success && data.booking && data.booking.status !== 'NO_BOOKING' && data.booking.status !== 'PAID' && data.booking.status !== 'COMPLETED') {
+        if (data.success && data.booking && data.booking.status !== 'NO_BOOKING') {
           setActiveBooking(data.booking);
         } else {
           setActiveBooking(null);
@@ -100,17 +100,13 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
         data.farmerId === farmerIdentifier;
 
       if (matches) {
-        if (data.status === 'PAID' || data.status === 'COMPLETED') {
-          setActiveBooking(null);
-        } else {
-          setActiveBooking((prev: any) => ({
-            ...(prev || {}),
-            ...data,
-            id: data.id || prev?.id,
-            tokenNumber: data.tokenNumber || prev?.tokenNumber,
-            status: data.status
-          }));
-        }
+        setActiveBooking((prev: any) => ({
+          ...(prev || {}),
+          ...data,
+          id: data.id || prev?.id,
+          tokenNumber: data.tokenNumber || prev?.tokenNumber,
+          status: data.status
+        }));
       }
     };
 
