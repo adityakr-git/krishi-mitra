@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Building2, 
   Megaphone, 
   CheckCircle, 
+  CheckCircle2,
   Clock, 
   Truck, 
   Scale, 
@@ -28,7 +29,8 @@ import confetti from 'canvas-confetti';
 import { useProcurementStore } from '../../store/useProcurementStore';
 import { getTranslation } from '../../i18n/translations';
 import { Token } from '../../types';
-import { getApiUrl } from '../../utils/api';
+import { getApiUrl, API_BASE_URL } from '../../utils/api';
+import { playSuccessChime } from '../../utils/soundEffects';
 import { RegisteredFarmer } from '../auth/LoginView';
 import { QRScanner } from './QRScanner';
 
@@ -141,7 +143,159 @@ export const OfficerDashboard: React.FC = () => {
 
   const activeMandi = mandis[0]; // Badshahpur Mandi
 
-  const filteredTokens = allTokens.filter((token) => {
+  const [dbBookings, setDbBookings] = useState<any[]>([]);
+
+  const fetchBookings = async () => {
+    try {
+      const res = await fetch(getApiUrl('/api/bookings'));
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.bookings)) {
+          setDbBookings(data.bookings);
+        }
+      }
+    } catch (err) {
+      console.warn('[OfficerDashboard] Fetch bookings error:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchBookings();
+    const interval = setInterval(fetchBookings, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleStatusUpdate = async (bookingId: string, nextStatus: string) => {
+    try {
+      const apiUrl = (import.meta as any).env?.VITE_BACKEND_URL || API_BASE_URL;
+      const res = await fetch(`${apiUrl}/officer/update-status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId, newStatus: nextStatus })
+      });
+
+      if (res.ok) {
+        playSuccessChime();
+        await fetchBookings();
+      }
+    } catch (error) {
+      console.error('Failed to update status:', error);
+    }
+  };
+
+  const renderRapidAction = (booking: any) => {
+    const status = booking.status;
+
+    switch (status) {
+      case 'BOOKED':
+      case 'SCHEDULED':
+        return (
+          <span className="text-slate-400 font-semibold text-xs inline-flex items-center gap-1 justify-end">
+            <Clock className="w-3.5 h-3.5" />
+            <span>Waiting for Arrival</span>
+          </span>
+        );
+
+      case 'ARRIVED':
+      case 'WAITING':
+        return (
+          <button
+            type="button"
+            onClick={() => handleStatusUpdate(booking.id, 'QUALITY_CHECK')}
+            className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-lg text-xs shadow-xs transition-all flex items-center gap-1 ml-auto"
+          >
+            <span>Quality Pass</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        );
+
+      case 'QUALITY_CHECK':
+        return (
+          <button
+            type="button"
+            onClick={() => handleStatusUpdate(booking.id, 'WEIGHED')}
+            className="bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-lg text-xs shadow-xs transition-all flex items-center gap-1 ml-auto"
+          >
+            <span>Record Weight</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        );
+
+      case 'WEIGHED':
+      case 'WEIGHING':
+      case 'PAYMENT_PROCESSING':
+        return (
+          <button
+            type="button"
+            onClick={() => handleStatusUpdate(booking.id, 'PAID')}
+            className="bg-green-600 hover:bg-green-700 active:scale-95 text-white font-bold px-3 py-1.5 rounded-lg text-xs shadow-xs transition-all flex items-center gap-1 ml-auto"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>Send DBT</span>
+          </button>
+        );
+
+      case 'PAID':
+      case 'COMPLETED':
+        return (
+          <span className="text-emerald-700 font-black text-xs inline-flex items-center gap-1 justify-end">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span>Completed</span>
+          </span>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  const displayTokens = useMemo(() => {
+    const map = new Map<string, any>();
+
+    // Initial store tokens
+    allTokens.forEach((t) => {
+      map.set(t.id, { ...t });
+    });
+
+    // Merge database bookings (overrides and additions)
+    dbBookings.forEach((b) => {
+      const existing = map.get(b.id);
+      if (existing) {
+        map.set(b.id, {
+          ...existing,
+          status: b.status,
+          crop: b.crop || existing.crop,
+          quantityQuintals: b.quantity || existing.quantityQuintals,
+          farmerName: b.farmerName || existing.farmerName,
+          farmerId: b.farmerId || existing.farmerId
+        });
+      } else {
+        map.set(b.id, {
+          id: b.id,
+          tokenNumber: 99,
+          farmerId: b.farmerId || 'HR-FARMER',
+          farmerName: b.farmerName || 'Kisan',
+          phone: '98765 00000',
+          village: 'Mandi Area',
+          crop: b.crop || 'Wheat',
+          cropVariety: 'Standard',
+          quantityQuintals: b.quantity || 40,
+          mandiId: b.mandiId || 'mandi-badshahpur',
+          mandiName: b.mandiName || 'Badshahpur APMC Mandi',
+          scheduledDate: 'Today',
+          scheduledTimeSlot: b.timeSlot || '11:00 AM - 12:00 PM',
+          queuePosition: b.status === 'ARRIVED' || b.status === 'WAITING' ? 1 : 2,
+          estimatedWaitMinutes: 5,
+          status: b.status,
+          createdAt: b.createdAt
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [allTokens, dbBookings]);
+
+  const filteredTokens = displayTokens.filter((token) => {
     const matchesSearch = 
       token.farmerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       token.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -149,9 +303,9 @@ export const OfficerDashboard: React.FC = () => {
 
     if (!matchesSearch) return false;
 
-    if (filterTab === 'WAITING') return token.status === 'SCHEDULED' || token.status === 'ARRIVED';
-    if (filterTab === 'PROCESSING') return token.status === 'QUALITY_CHECK' || token.status === 'WEIGHING' || token.status === 'PAYMENT_PROCESSING';
-    if (filterTab === 'COMPLETED') return token.status === 'COMPLETED';
+    if (filterTab === 'WAITING') return token.status === 'SCHEDULED' || token.status === 'ARRIVED' || token.status === 'WAITING' || token.status === 'BOOKED';
+    if (filterTab === 'PROCESSING') return token.status === 'QUALITY_CHECK' || token.status === 'WEIGHING' || token.status === 'WEIGHED' || token.status === 'PAYMENT_PROCESSING';
+    if (filterTab === 'COMPLETED') return token.status === 'COMPLETED' || token.status === 'PAID';
     return true;
   });
 
@@ -485,12 +639,15 @@ export const OfficerDashboard: React.FC = () => {
       {dashboardSection === 'SCANNER' && (
         <div className="space-y-6 animate-fade-in py-2">
           <QRScanner
-            onScanSuccess={() => {
+            onScanSuccess={async () => {
               confetti({
                 particleCount: 90,
                 spread: 70,
                 origin: { y: 0.6 }
               });
+              await fetchBookings();
+              setFilterTab('WAITING');
+              setDashboardSection('OPERATIONS');
             }}
             onClose={() => setDashboardSection('OPERATIONS')}
           />
@@ -648,13 +805,15 @@ export const OfficerDashboard: React.FC = () => {
 
                     <td className="py-3 px-3">
                       <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold tracking-tight ${
-                        token.status === 'COMPLETED'
+                        token.status === 'COMPLETED' || token.status === 'PAID'
                           ? 'bg-green-100 text-green-800'
                           : token.status === 'PAYMENT_PROCESSING'
                           ? 'bg-blue-100 text-blue-800'
-                          : token.status === 'ARRIVED'
+                          : token.status === 'ARRIVED' || token.status === 'WAITING'
                           ? 'bg-purple-100 text-purple-800'
-                          : token.status === 'WEIGHING'
+                          : token.status === 'QUALITY_CHECK'
+                          ? 'bg-blue-100 text-blue-800'
+                          : token.status === 'WEIGHING' || token.status === 'WEIGHED'
                           ? 'bg-amber-100 text-amber-800'
                           : 'bg-slate-100 text-slate-600'
                       }`}>
@@ -663,43 +822,7 @@ export const OfficerDashboard: React.FC = () => {
                     </td>
 
                     <td className="py-3 px-3 text-right">
-                      {token.status === 'SCHEDULED' && (
-                        <button
-                          onClick={() => markTokenArrived(token.id)}
-                          className="bg-purple-100 hover:bg-purple-200 text-purple-900 font-bold px-2.5 py-1 rounded-lg text-[11px] transition-colors"
-                        >
-                          Mark Arrived
-                        </button>
-                      )}
-
-                      {token.status === 'ARRIVED' && (
-                        <button
-                          onClick={() => {
-                            setInspectingToken(token);
-                            setNetWeightQuintals(token.quantityQuintals);
-                          }}
-                          className="bg-forest hover:bg-forest-light text-white font-bold px-2.5 py-1 rounded-lg text-[11px] transition-colors shadow-sm"
-                        >
-                          Start Weigh & Inspect
-                        </button>
-                      )}
-
-                      {token.status === 'PAYMENT_PROCESSING' && (
-                        <button
-                          onClick={() => handleTriggerPayment(token.id)}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1 rounded-lg text-[11px] transition-colors shadow-sm flex items-center gap-1 ml-auto"
-                        >
-                          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                          <span>Approve DBT (₹{(token.paymentData?.netAmount || 91000).toLocaleString('en-IN')})</span>
-                        </button>
-                      )}
-
-                      {token.status === 'COMPLETED' && (
-                        <span className="text-emerald-700 font-bold text-[11px] flex items-center justify-end gap-1">
-                          <Check className="w-3.5 h-3.5" />
-                          <span>DBT Paid</span>
-                        </span>
-                      )}
+                      {renderRapidAction(token)}
                     </td>
                   </tr>
                 );

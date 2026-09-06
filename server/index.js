@@ -370,6 +370,7 @@ app.get('/api/farmer/booking-status/:farmerId', async (req, res) => {
       success: true,
       status: booking.status,
       bookingId: booking.id,
+      booking: booking,
       crop: booking.crop,
       quantity: booking.quantity
     });
@@ -379,34 +380,46 @@ app.get('/api/farmer/booking-status/:farmerId', async (req, res) => {
   }
 });
 
-// 10. Update Token Status (Yard Operations: Quality Check, Weighing, Paid)
-app.post('/api/farmer/update-status', async (req, res) => {
+// 10. Universal Status Update API (Mandi Officer & Admin Yard Flow)
+// Status Flow: BOOKED -> ARRIVED -> QUALITY_CHECK -> WEIGHED -> PAID
+const handleStatusUpdate = async (req, res) => {
   try {
-    const { bookingId, status } = req.body;
-    if (!bookingId || !status) {
-      return res.status(400).json({ success: false, error: "bookingId and status are required." });
+    const { bookingId, newStatus, status } = req.body;
+    const targetStatus = newStatus || status;
+
+    if (!bookingId || !targetStatus) {
+      return res.status(400).json({ success: false, error: "bookingId and newStatus are required." });
     }
 
     const cleanId = String(bookingId).trim();
     const updated = await prisma.booking.upsert({
       where: { id: cleanId },
-      update: { status },
+      update: { status: targetStatus },
       create: {
         id: cleanId,
         farmerId: 'HR-GUR-2024-8841',
+        farmerName: 'Ramesh Kumar',
         crop: 'Wheat (Kanak)',
         quantity: 40.0,
-        status
+        status: targetStatus
       }
     });
 
+    // Real-time broadcast to all connected farmers and officers
     io.emit('booking_status_updated', updated);
+    io.emit('token_status_changed', { id: cleanId, status: targetStatus });
+
     res.json({ success: true, booking: updated });
   } catch (error) {
     console.error("Update status error:", error);
     res.status(500).json({ success: false, error: "Failed to update status" });
   }
-});
+};
+
+app.put('/api/officer/update-status', handleStatusUpdate);
+app.post('/api/officer/update-status', handleStatusUpdate);
+app.post('/api/farmer/update-status', handleStatusUpdate);
+app.put('/api/farmer/update-status', handleStatusUpdate);
 
 const PORT = Number(process.env.PORT) || 5000;
 const HOST = '0.0.0.0';

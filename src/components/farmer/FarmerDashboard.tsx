@@ -13,6 +13,7 @@ import { NearbyTab } from './tabs/NearbyTab';
 import { HistoryTab } from './tabs/HistoryTab';
 import { ProfileTab } from './tabs/ProfileTab';
 import { VoiceAssistantFAB } from './VoiceAssistantFAB';
+import { API_BASE_URL } from '../../utils/api';
 
 interface FarmerDashboardProps {
   onOpenCropCheck: () => void;
@@ -43,6 +44,9 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
     typeof window !== 'undefined' ? !window.navigator.onLine : false
   );
 
+  // Active Booking State for Lifecycle Progression
+  const [activeBooking, setActiveBooking] = useState<any>(null);
+
   // Booking Modal States
   const [showBookModal, setShowBookModal] = useState(false);
   const [selectedCrop, setSelectedCrop] = useState('Wheat (Kanak)');
@@ -50,6 +54,76 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
   const [quantity, setQuantity] = useState<number>(40);
   const [selectedMandiId, setSelectedMandiId] = useState('mandi-sohna');
   const [selectedSlot, setSelectedSlot] = useState('11:00 AM - 12:00 PM');
+
+  // Fetch Booking Status from Backend API
+  const fetchFarmerBooking = async () => {
+    try {
+      const farmerIdentifier = user?.id || user?.phone || 'HR-GUR-2024-8841';
+      const apiUrl = (import.meta as any).env?.VITE_BACKEND_URL || API_BASE_URL;
+      const res = await fetch(`${apiUrl}/farmer/booking-status/${encodeURIComponent(farmerIdentifier)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.status && data.status !== 'NO_BOOKING' && data.status !== 'PAID' && data.status !== 'COMPLETED') {
+          setActiveBooking(data.booking || {
+            id: data.bookingId,
+            status: data.status,
+            crop: data.crop,
+            quantity: data.quantity,
+            farmerId: farmerIdentifier,
+            mandiName: 'Badshahpur APMC Mandi',
+            scheduledTimeSlot: '11:00 AM - 12:00 PM'
+          });
+        } else {
+          setActiveBooking(null);
+        }
+      }
+    } catch (e) {
+      console.warn('[FarmerDashboard] Fetch booking status error:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchFarmerBooking();
+    const interval = setInterval(fetchFarmerBooking, 15000);
+    return () => clearInterval(interval);
+  }, [user?.id, user?.phone]);
+
+  // Real-Time Socket Updates for Status Progression
+  useEffect(() => {
+    const socket = socketService.getSocket();
+    if (!socket) return;
+
+    const handleRealtimeStatus = (data: any) => {
+      if (!data) return;
+      const farmerIdentifier = user?.id || user?.phone || 'HR-GUR-2024-8841';
+      const matches = 
+        data.id === activeBooking?.id || 
+        data.bookingId === activeBooking?.id || 
+        data.farmerId === farmerIdentifier ||
+        data.id === 'A-142';
+
+      if (matches) {
+        if (data.status === 'PAID' || data.status === 'COMPLETED') {
+          setActiveBooking(null);
+        } else {
+          setActiveBooking((prev: any) => ({
+            ...(prev || {}),
+            ...data,
+            id: data.id || data.bookingId || prev?.id,
+            status: data.status
+          }));
+        }
+      }
+    };
+
+    socket.on('booking_status_updated', handleRealtimeStatus);
+    socket.on('token_status_changed', handleRealtimeStatus);
+
+    return () => {
+      socket.off('booking_status_updated', handleRealtimeStatus);
+      socket.off('token_status_changed', handleRealtimeStatus);
+    };
+  }, [user?.id, user?.phone, activeBooking?.id]);
 
   // Cache token in localStorage for offline PWA gate entry
   useEffect(() => {
@@ -118,10 +192,39 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
     };
   }, [displayToken.mandiId, isEffectivelyOffline, language]);
 
-  const handleBookToken = (e: React.FormEvent) => {
+  const handleBookToken = async (e: React.FormEvent) => {
     e.preventDefault();
-    bookNewToken(selectedCrop, selectedVariety, Number(quantity), selectedMandiId, selectedSlot);
+    const token = bookNewToken(selectedCrop, selectedVariety, Number(quantity), selectedMandiId, selectedSlot);
     setShowBookModal(false);
+
+    // Also persist booking to Neon Backend API
+    try {
+      const farmerIdentifier = user?.id || user?.phone || 'HR-GUR-2024-8841';
+      const apiUrl = (import.meta as any).env?.VITE_BACKEND_URL || API_BASE_URL;
+      const res = await fetch(`${apiUrl}/bookings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: token.id,
+          farmerId: farmerIdentifier,
+          farmerName: user?.name || 'Ramesh Kumar',
+          crop: selectedCrop,
+          quantity: Number(quantity),
+          mandiId: selectedMandiId,
+          mandiName: mandis.find(m => m.id === selectedMandiId)?.name || 'Badshahpur APMC Mandi',
+          timeSlot: selectedSlot
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.booking) {
+        setActiveBooking(data.booking);
+      } else {
+        setActiveBooking(token);
+      }
+    } catch (err) {
+      console.warn('Sync booking error:', err);
+      setActiveBooking(token);
+    }
   };
 
   const handleSelectMandiForBooking = (mandiId: string) => {
@@ -142,6 +245,7 @@ export const FarmerDashboard: React.FC<FarmerDashboardProps> = ({
           <HomeTab
             farmerName={farmerName}
             displayToken={displayToken}
+            activeBooking={activeBooking}
             isEffectivelyOffline={isEffectivelyOffline}
             liveSyncNotice={liveSyncNotice}
             onOpenCropCheck={onOpenCropCheck}

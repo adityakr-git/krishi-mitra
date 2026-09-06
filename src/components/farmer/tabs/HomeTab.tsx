@@ -19,6 +19,7 @@ import { ProcurementTracker } from '../ProcurementTracker';
 interface HomeTabProps {
   farmerName: string;
   displayToken: Token;
+  activeBooking?: any;
   isEffectivelyOffline: boolean;
   liveSyncNotice: string | null;
   onOpenCropCheck: () => void;
@@ -28,6 +29,7 @@ interface HomeTabProps {
 export const HomeTab: React.FC<HomeTabProps> = ({
   farmerName,
   displayToken,
+  activeBooking,
   isEffectivelyOffline,
   liveSyncNotice,
   onOpenCropCheck,
@@ -116,95 +118,128 @@ export const HomeTab: React.FC<HomeTabProps> = ({
       {/* Weather & Harvest Advisory */}
       <WeatherAdvisoryWidget />
 
-      {/* The Unified Smart Token (High-contrast, clean digital pass - 100% visible offline) */}
-      <div 
-        id="smart-token-pass"
-        className="bg-forest text-white rounded-3xl p-5 shadow-lg relative overflow-hidden border border-forest-light scroll-mt-20"
-      >
-        {/* Subtle watermark */}
-        <div className="absolute -right-8 -bottom-8 w-36 h-36 bg-forest-light/20 rounded-full pointer-events-none" />
-
-        {/* Top Token Badge & Mandi */}
-        <div className="flex items-start justify-between gap-2 border-b border-forest-light/40 pb-3">
-          <div>
-            <span className="text-[10px] font-bold text-forest-pale uppercase tracking-wider block">
-              {t('digital_pass')}
-            </span>
-            <span className="text-3xl font-black tracking-tight text-white block leading-tight">
-              #{displayToken.id}
-            </span>
-            <span className="text-xs font-semibold text-emerald-200 flex items-center gap-1 mt-0.5">
-              <MapPin className="w-3.5 h-3.5 text-forest-accent" />
-              {displayToken.mandiName}
-            </span>
+      {/* 
+        CONDITIONAL RENDERING OF DIGITAL PASS & 5-STEP TRACKER
+        Only render pass and tracker if an active booking exists.
+        Otherwise, render clean Empty State to generate new token.
+      */}
+      {!activeBooking ? (
+        <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-xs border border-slate-200 text-center space-y-4 animate-fade-in">
+          <div className="w-16 h-16 bg-forest-pale text-forest rounded-3xl mx-auto flex items-center justify-center shadow-xs">
+            <Ticket className="w-8 h-8 text-forest" />
           </div>
-
-          {/* Scannable Real QR Code Container */}
+          <div className="space-y-1">
+            <h2 className="text-base sm:text-lg font-black text-slate-900">
+              {language === 'hi' ? 'नया टोकन जनरेट करें' : 'Generate New Token'}
+            </h2>
+            <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+              {language === 'hi'
+                ? 'मंडी में अपनी फसल लाने के लिए तारीख व समय स्लॉट बुक करें और डिजिटल गेट पास प्राप्त करें।'
+                : 'Book a convenient time slot to bring your harvest to the mandi and get your instant Digital Pass.'}
+            </p>
+          </div>
           <button
             type="button"
-            onClick={() => setShowFullPassModal(true)}
-            className="bg-white p-2 rounded-2xl shadow-md shrink-0 text-center hover:ring-2 hover:ring-forest-accent transition-all cursor-pointer group flex flex-col items-center"
-            title={language === 'hi' ? 'क्लिक करके बड़ा QR कोड देखें' : 'Click to enlarge QR pass'}
+            onClick={onOpenBookModal}
+            className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-black text-xs px-6 py-3 rounded-2xl shadow-md transition-all inline-flex items-center gap-2 animate-pulse-subtle"
           >
-            <div className="w-16 h-16 bg-white flex items-center justify-center p-0.5">
-              <QRCode 
-                value={displayToken.id} 
-                size={58} 
-                level="H" 
-              />
-            </div>
-            <span className="text-[8px] font-bold text-slate-700 block uppercase tracking-tighter mt-1 group-hover:text-forest">
-              {t('scan_at_gate')} 🔍
-            </span>
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>{language === 'hi' ? 'स्लॉट बुक करें (Book Slot)' : 'Book Slot'}</span>
           </button>
         </div>
+      ) : (
+        <div className="space-y-4 animate-fade-in">
+          {/* The Unified Smart Token (High-contrast, clean digital pass - 100% visible offline) */}
+          <div 
+            id="smart-token-pass"
+            className="bg-forest text-white rounded-3xl p-5 shadow-lg relative overflow-hidden border border-forest-light scroll-mt-20"
+          >
+            {/* Subtle watermark */}
+            <div className="absolute -right-8 -bottom-8 w-36 h-36 bg-forest-light/20 rounded-full pointer-events-none" />
 
-        {/* Crop & Quantity */}
-        <div className="py-3 flex items-center justify-between text-xs border-b border-forest-light/40">
-          <div>
-            <span className="text-[10px] text-forest-pale block">{t('crop_type')}:</span>
-            <strong className="text-sm font-extrabold text-white">{displayToken.crop}</strong>
-          </div>
-          <div className="text-right">
-            <span className="text-[10px] text-forest-pale block">{t('quantity')}:</span>
-            <strong className="text-sm font-extrabold text-white">
-              {displayToken.quantityQuintals} {t('quintals')}
-            </strong>
-          </div>
-        </div>
+            {/* Top Token Badge & Mandi */}
+            <div className="flex items-start justify-between gap-2 border-b border-forest-light/40 pb-3">
+              <div>
+                <span className="text-[10px] font-bold text-forest-pale uppercase tracking-wider block">
+                  {t('digital_pass')}
+                </span>
+                <span className="text-3xl font-black tracking-tight text-white block leading-tight">
+                  #{activeBooking.id || displayToken.id}
+                </span>
+                <span className="text-xs font-semibold text-emerald-200 flex items-center gap-1 mt-0.5">
+                  <MapPin className="w-3.5 h-3.5 text-forest-accent" />
+                  {activeBooking.mandiName || displayToken.mandiName}
+                </span>
+              </div>
 
-        {/* Live Queue Status Banner */}
-        <div className="mt-3 bg-white/10 backdrop-blur rounded-2xl p-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-gold text-slate-950 flex items-center justify-center font-bold">
-              <Clock className="w-4 h-4" />
+              {/* Scannable Real QR Code Container */}
+              <button
+                type="button"
+                onClick={() => setShowFullPassModal(true)}
+                className="bg-white p-2 rounded-2xl shadow-md shrink-0 text-center hover:ring-2 hover:ring-forest-accent transition-all cursor-pointer group flex flex-col items-center"
+                title={language === 'hi' ? 'क्लिक करके बड़ा QR कोड देखें' : 'Click to enlarge QR pass'}
+              >
+                <div className="w-16 h-16 bg-white flex items-center justify-center p-0.5">
+                  <QRCode 
+                    value={activeBooking.id || displayToken.id} 
+                    size={58} 
+                    level="H" 
+                  />
+                </div>
+                <span className="text-[8px] font-bold text-slate-700 block uppercase tracking-tighter mt-1 group-hover:text-forest">
+                  {t('scan_at_gate')} 🔍
+                </span>
+              </button>
             </div>
-            <div>
-              <span className="text-[10px] text-forest-pale uppercase font-bold block">{t('estimated_wait')}</span>
-              <span className="text-base font-black text-amber-300">
-                {displayToken.estimatedWaitMinutes} {t('minutes')}
+
+            {/* Crop & Quantity */}
+            <div className="py-3 flex items-center justify-between text-xs border-b border-forest-light/40">
+              <div>
+                <span className="text-[10px] text-forest-pale block">{t('crop_type')}:</span>
+                <strong className="text-sm font-extrabold text-white">{activeBooking.crop || displayToken.crop}</strong>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-forest-pale block">{t('quantity')}:</span>
+                <strong className="text-sm font-extrabold text-white">
+                  {activeBooking.quantity || displayToken.quantityQuintals} {t('quintals')}
+                </strong>
+              </div>
+            </div>
+
+            {/* Live Queue Status Banner */}
+            <div className="mt-3 bg-white/10 backdrop-blur rounded-2xl p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-gold text-slate-950 flex items-center justify-center font-bold">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[10px] text-forest-pale uppercase font-bold block">{t('estimated_wait')}</span>
+                  <span className="text-base font-black text-amber-300">
+                    {displayToken.estimatedWaitMinutes || 10} {t('minutes')}
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-right border-l border-white/20 pl-3">
+                <span className="text-[10px] text-forest-pale uppercase font-bold block">{t('queue_position')}</span>
+                <span className="text-xs font-black text-white">
+                  {displayToken.queuePosition === 0 ? t('now_at_desk') : `${displayToken.queuePosition || 1} ${t('farmers_ahead')}`}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-2.5 text-center">
+              <span className="text-[11px] text-forest-pale">
+                {t('slot_time')}: <strong>{activeBooking.timeSlot || displayToken.scheduledTimeSlot}</strong>
               </span>
             </div>
+
           </div>
 
-          <div className="text-right border-l border-white/20 pl-3">
-            <span className="text-[10px] text-forest-pale uppercase font-bold block">{t('queue_position')}</span>
-            <span className="text-xs font-black text-white">
-              {displayToken.queuePosition === 0 ? t('now_at_desk') : `${displayToken.queuePosition} ${t('farmers_ahead')}`}
-            </span>
-          </div>
+          {/* Dynamic 5-Step Procurement Progress Tracker */}
+          <ProcurementTracker farmerId={activeBooking.farmerId || displayToken.farmerId} tokenId={activeBooking.id || displayToken.id} />
         </div>
-
-        <div className="mt-2.5 text-center">
-          <span className="text-[11px] text-forest-pale">
-            {t('slot_time')}: <strong>{displayToken.scheduledTimeSlot}</strong>
-          </span>
-        </div>
-
-      </div>
-
-      {/* Dynamic 5-Step Procurement Progress Tracker */}
-      <ProcurementTracker farmerId={displayToken.farmerId} tokenId={displayToken.id} />
+      )}
 
       {/* Quick Utility Action: Crop Pre-Check (Full-width card, Book Slot moved to Center FAB) */}
       <div className="pt-1">
