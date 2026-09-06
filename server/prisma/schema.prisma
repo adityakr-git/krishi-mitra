@@ -17,3 +17,16 @@ model User {
   status    String   @default("pending")
   createdAt DateTime @default(now())
 }
+
+model Booking {
+  id          String   @id @default(uuid())
+  farmerId    String
+  farmerName  String?
+  crop        String
+  quantity    Float
+  mandiId     String?
+  mandiName   String?
+  timeSlot    String?
+  status      String   @default("BOOKED") // Transitions: BOOKED -> WAITING -> VERIFIED -> PAID
+  createdAt   DateTime @default(now())
+}

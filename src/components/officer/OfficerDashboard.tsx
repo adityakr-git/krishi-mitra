@@ -20,7 +20,9 @@ import {
   Eye,
   X,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  Camera,
+  QrCode
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useProcurementStore } from '../../store/useProcurementStore';
@@ -28,6 +30,7 @@ import { getTranslation } from '../../i18n/translations';
 import { Token } from '../../types';
 import { getApiUrl } from '../../utils/api';
 import { RegisteredFarmer } from '../auth/LoginView';
+import { QRScanner } from './QRScanner';
 
 export const OfficerDashboard: React.FC = () => {
   const { 
@@ -46,8 +49,8 @@ export const OfficerDashboard: React.FC = () => {
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcastSent, setBroadcastSent] = useState(false);
 
-  // Section Switcher: Mandi Yard Operations vs Farmer KYC Verification
-  const [dashboardSection, setDashboardSection] = useState<'OPERATIONS' | 'KYC'>('KYC');
+  // Section Switcher: Mandi Yard Operations vs Farmer KYC Verification vs QR Scanner
+  const [dashboardSection, setDashboardSection] = useState<'OPERATIONS' | 'KYC' | 'SCANNER'>('KYC');
   const [registeredFarmers, setRegisteredFarmers] = useState<RegisteredFarmer[]>([]);
   const [selectedDocFarmer, setSelectedDocFarmer] = useState<RegisteredFarmer | null>(null);
   const [kycTab, setKycTab] = useState<'PENDING' | 'APPROVED'>('PENDING');
@@ -216,8 +219,16 @@ export const OfficerDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Rapid Call Next Action */}
+        {/* Action Buttons: Scan QR & Call Next */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setDashboardSection('SCANNER')}
+            className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md flex items-center gap-2 transition-all active:scale-95"
+          >
+            <Camera className="w-4 h-4 text-purple-200" />
+            <span>गेट पास स्कैन (Scan QR)</span>
+          </button>
+
           <button
             onClick={handleCallNext}
             className="bg-forest hover:bg-forest-light text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md flex items-center gap-2 transition-all active:scale-95"
@@ -228,11 +239,11 @@ export const OfficerDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Section Switcher: KYC Verification vs Mandi Operations */}
-      <div className="bg-white rounded-2xl p-2 shadow-sm border border-slate-200 flex items-center gap-2">
+      {/* Section Switcher: KYC Verification vs Mandi Operations vs QR Gate Entry */}
+      <div className="bg-white rounded-2xl p-2 shadow-sm border border-slate-200 flex items-center gap-2 flex-wrap sm:flex-nowrap">
         <button
           onClick={() => setDashboardSection('KYC')}
-          className={`flex-1 py-3 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-3 px-3 sm:px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all ${
             dashboardSection === 'KYC'
               ? 'bg-forest text-white shadow-md'
               : 'text-slate-600 hover:bg-soil-50 hover:text-slate-900'
@@ -242,14 +253,26 @@ export const OfficerDashboard: React.FC = () => {
           <span>KYC Verification (किसान सत्यापन)</span>
           {pendingFarmers.length > 0 && (
             <span className="bg-amber-400 text-amber-950 text-[11px] font-black px-2 py-0.5 rounded-full ml-1 animate-pulse">
-              {pendingFarmers.length} Pending
+              {pendingFarmers.length}
             </span>
           )}
         </button>
 
         <button
+          onClick={() => setDashboardSection('SCANNER')}
+          className={`flex-1 py-3 px-3 sm:px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all ${
+            dashboardSection === 'SCANNER'
+              ? 'bg-purple-700 text-white shadow-md'
+              : 'text-slate-600 hover:bg-soil-50 hover:text-slate-900'
+          }`}
+        >
+          <QrCode className="w-4 h-4" />
+          <span>Gate Entry (गेट QR स्कैन)</span>
+        </button>
+
+        <button
           onClick={() => setDashboardSection('OPERATIONS')}
-          className={`flex-1 py-3 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-3 px-3 sm:px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all ${
             dashboardSection === 'OPERATIONS'
               ? 'bg-forest text-white shadow-md'
               : 'text-slate-600 hover:bg-soil-50 hover:text-slate-900'
@@ -258,7 +281,7 @@ export const OfficerDashboard: React.FC = () => {
           <Building2 className="w-4 h-4" />
           <span>Yard Operations (मंडी संचालन)</span>
           <span className="bg-slate-100 text-slate-700 text-[11px] font-bold px-2 py-0.5 rounded-full ml-1">
-            {allTokens.length} Tokens
+            {allTokens.length}
           </span>
         </button>
       </div>
@@ -458,9 +481,46 @@ export const OfficerDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Section 2: Mandi Yard Operations */}
+      {/* Section 2: Gate Entry QR Scanner */}
+      {dashboardSection === 'SCANNER' && (
+        <div className="space-y-6 animate-fade-in py-2">
+          <QRScanner
+            onScanSuccess={() => {
+              confetti({
+                particleCount: 90,
+                spread: 70,
+                origin: { y: 0.6 }
+              });
+            }}
+            onClose={() => setDashboardSection('OPERATIONS')}
+          />
+        </div>
+      )}
+
+      {/* Section 3: Mandi Yard Operations */}
       {dashboardSection === 'OPERATIONS' && (
         <div className="space-y-6 animate-fade-in">
+          {/* Quick Gate Entry Scanner Banner */}
+          <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border border-purple-200 p-4 rounded-3xl flex flex-wrap items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-purple-700 text-white flex items-center justify-center shadow-sm shrink-0">
+                <Camera className="w-5 h-5" />
+              </div>
+              <div>
+                <strong className="text-sm font-black text-slate-900 block">गेट प्रवेश QR स्कैनर (Gate Entry System)</strong>
+                <span className="text-xs text-purple-900 font-medium">किसान के डिजिटल पास का QR कोड स्कैन करें — स्थिति तुरंत "WAITING" में अपडेट होगी</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDashboardSection('SCANNER')}
+              className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md shrink-0 flex items-center gap-2 transition-all active:scale-95"
+            >
+              <QrCode className="w-4 h-4 text-purple-200" />
+              <span>कैमरा स्कैनर खोलें (Open Scanner)</span>
+            </button>
+          </div>
+
           {/* Key Mandi Metrics Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">

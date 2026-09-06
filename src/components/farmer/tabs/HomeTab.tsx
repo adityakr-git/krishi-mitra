@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import QRCode from 'react-qr-code';
 import { 
   Clock, 
   MapPin, 
@@ -6,7 +7,8 @@ import {
   Camera, 
   Radio, 
   WifiOff,
-  Ticket
+  Ticket,
+  Maximize2
 } from 'lucide-react';
 import { Token } from '../../../types';
 import { useTranslation } from '../../../i18n/useTranslation';
@@ -31,6 +33,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   onOpenBookModal
 }) => {
   const { t, language } = useTranslation();
+  const [showFullPassModal, setShowFullPassModal] = useState(false);
 
   const hasActiveToken = Boolean(
     displayToken && 
@@ -135,35 +138,24 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             </span>
           </div>
 
-          {/* Scannable QR Code Container */}
-          <div className="bg-white p-2 rounded-2xl shadow-md shrink-0 text-center">
-            <div className="w-16 h-16 bg-white flex items-center justify-center">
-              <svg viewBox="0 0 100 100" className="w-full h-full text-slate-900">
-                <rect width="100" height="100" fill="white" />
-                <rect x="10" y="10" width="26" height="26" fill="#1b4332" rx="4" />
-                <rect x="16" y="16" width="14" height="14" fill="white" rx="2" />
-                <rect x="20" y="20" width="6" height="6" fill="#1b4332" />
-                
-                <rect x="64" y="10" width="26" height="26" fill="#1b4332" rx="4" />
-                <rect x="70" y="16" width="14" height="14" fill="white" rx="2" />
-                <rect x="74" y="20" width="6" height="6" fill="#1b4332" />
-
-                <rect x="10" y="64" width="26" height="26" fill="#1b4332" rx="4" />
-                <rect x="16" y="70" width="14" height="14" fill="white" rx="2" />
-                <rect x="20" y="74" width="6" height="6" fill="#1b4332" />
-
-                <rect x="42" y="14" width="6" height="6" fill="#1b4332" />
-                <rect x="52" y="22" width="6" height="6" fill="#1b4332" />
-                <rect x="42" y="32" width="16" height="6" fill="#1b4332" />
-                <rect x="42" y="52" width="6" height="16" fill="#1b4332" />
-                <rect x="56" y="62" width="8" height="8" fill="#1b4332" />
-                <rect x="74" y="52" width="14" height="6" fill="#1b4332" />
-              </svg>
+          {/* Scannable Real QR Code Container */}
+          <button
+            type="button"
+            onClick={() => setShowFullPassModal(true)}
+            className="bg-white p-2 rounded-2xl shadow-md shrink-0 text-center hover:ring-2 hover:ring-forest-accent transition-all cursor-pointer group flex flex-col items-center"
+            title={language === 'hi' ? 'क्लिक करके बड़ा QR कोड देखें' : 'Click to enlarge QR pass'}
+          >
+            <div className="w-16 h-16 bg-white flex items-center justify-center p-0.5">
+              <QRCode 
+                value={displayToken.id} 
+                size={58} 
+                level="H" 
+              />
             </div>
-            <span className="text-[8px] font-bold text-slate-600 block uppercase tracking-tighter mt-0.5">
-              {t('scan_at_gate')}
+            <span className="text-[8px] font-bold text-slate-700 block uppercase tracking-tighter mt-1 group-hover:text-forest">
+              {t('scan_at_gate')} 🔍
             </span>
-          </div>
+          </button>
         </div>
 
         {/* Crop & Quantity */}
@@ -231,6 +223,83 @@ export const HomeTab: React.FC<HomeTabProps> = ({
           </span>
         </button>
       </div>
+
+      {/* Full Digital Gate Pass Modal */}
+      {showFullPassModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 shadow-2xl max-w-sm w-full space-y-4 text-slate-900 animate-scale-in">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-bold text-forest uppercase tracking-wider block">
+                  {t('digital_pass')} • Gate Entry Pass
+                </span>
+                <h3 className="text-2xl font-black text-slate-900">
+                  #{displayToken.id}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFullPassModal(false)}
+                className="text-slate-400 hover:text-slate-700 text-sm font-bold w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scannable Large QR Code matching user requirement */}
+            <div className="bg-white p-4 rounded-xl flex flex-col items-center justify-center border border-slate-200 shadow-sm">
+              <QRCode 
+                value={displayToken.id} // This is the unique ID the officer will scan
+                size={170} 
+                level="H"
+              />
+              <span className="text-xs font-bold text-slate-700 mt-3 text-center">
+                {language === 'hi' ? 'मंडी गेट पर अधिकारी को यह QR कोड दिखाएं' : 'Show this QR code to Mandi Officer at Gate'}
+              </span>
+            </div>
+
+            {/* Token Details */}
+            <div className="space-y-1.5 text-xs bg-soil-50 p-3 rounded-2xl border border-slate-200/80">
+              <div className="flex justify-between">
+                <span className="text-slate-500">{t('crop_type')}:</span>
+                <strong className="text-slate-900">{displayToken.crop}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">{t('quantity')}:</span>
+                <strong className="text-slate-900">{displayToken.quantityQuintals} {t('quintals')}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Mandi:</span>
+                <strong className="text-forest">{displayToken.mandiName}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">{t('slot_time')}:</span>
+                <strong className="text-slate-800">{displayToken.scheduledTimeSlot}</strong>
+              </div>
+              <div className="flex justify-between pt-1.5 border-t border-slate-200">
+                <span className="text-slate-500">स्थिति (Status):</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  displayToken.status === 'ARRIVED'
+                    ? 'bg-purple-100 text-purple-800'
+                    : displayToken.status === 'COMPLETED'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-amber-100 text-amber-900'
+                }`}>
+                  {displayToken.status === 'ARRIVED' ? 'ARRIVED (WAITING)' : displayToken.status}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowFullPassModal(false)}
+              className="w-full bg-forest hover:bg-forest-light text-white font-bold text-xs py-3 rounded-xl shadow-md transition-all active:scale-95"
+            >
+              {language === 'hi' ? 'बंद करें (Close)' : 'Done'}
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -4,8 +4,8 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useProcurementStore } from '../../store/useProcurementStore';
 import { Language } from '../../types';
 
-// Hardcoded backend API URL for local development
-const API_BASE_URL = 'http://localhost:5000/api';
+// Strictly pointing to live Render backend
+const API_BASE_URL = 'https://krishi-mitra-4pot.onrender.com/api';
 import { 
   Globe, 
   ShieldCheck, 
