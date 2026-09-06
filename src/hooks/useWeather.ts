@@ -26,14 +26,15 @@ export function generateAgriculturalAdvisory(
   conditionMain: string,
   temp: number
 ): { hi: string; en: string } {
-  // Rain / Drizzle / Thunderstorm (OpenWeather condition codes 200-599)
+  // Rain / Drizzle / Thunderstorm (OpenWeather condition codes 200-599) or Heavy Overcast (804)
   if (
     (conditionId >= 200 && conditionId < 600) ||
+    conditionId === 804 ||
     ['Rain', 'Drizzle', 'Thunderstorm'].includes(conditionMain)
   ) {
     return {
       hi: '⚠️ बारिश की संभावना है। कृपया अपनी फसल को तिरपाल से ढक कर रखें और आज मंडी जाने से बचें।',
-      en: '⚠️ Rain expected. Please cover crops with tarpaulin and avoid going to the mandi today.'
+      en: '⚠️ Rain or heavy overcast expected. Please cover crops with tarpaulin and avoid going to the mandi today.'
     };
   }
 

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../../context/LanguageContext';
 
 export const WeatherAdvisoryWidget = () => {
   const [weather, setWeather] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const { currentLang } = useLanguage();
 
   useEffect(() => {
     const fetchWeather = async (lat: number, lon: number) => {
@@ -11,8 +13,9 @@ export const WeatherAdvisoryWidget = () => {
         const apiKey = import.meta.env.VITE_OPENWEATHER_API_KEY || import.meta.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
         if (!apiKey) throw new Error("API Key missing");
 
+        const langCode = currentLang === 'en' ? 'en' : currentLang === 'pa' ? 'pa' : 'hi';
         const res = await fetch(
-          `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=hi&appid=${apiKey}`
+          `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=${langCode}&appid=${apiKey}`
         );
         const data = await res.json();
         
@@ -26,7 +29,7 @@ export const WeatherAdvisoryWidget = () => {
             name: "Gurugram (गुरुग्राम)",
             main: { temp: 28, humidity: 45 },
             wind: { speed: 3.3 },
-            weather: [{ id: 800, main: "Clear", description: "साफ आसमान", icon: "01d" }]
+            weather: [{ id: 800, main: "Clear", description: currentLang === 'en' ? 'Clear Sky' : 'साफ आसमान', icon: "01d" }]
           });
         }
       } catch (err) {
@@ -37,7 +40,7 @@ export const WeatherAdvisoryWidget = () => {
           name: "Gurugram (गुरुग्राम)",
           main: { temp: 28, humidity: 45 },
           wind: { speed: 3.3 },
-          weather: [{ id: 800, main: "Clear", description: "साफ आसमान", icon: "01d" }]
+          weather: [{ id: 800, main: "Clear", description: currentLang === 'en' ? 'Clear Sky' : 'साफ आसमान', icon: "01d" }]
         });
       } finally {
         setLoading(false);
@@ -58,30 +61,66 @@ export const WeatherAdvisoryWidget = () => {
     } else {
       fetchWeather(28.4595, 77.0266);
     }
-  }, []);
+  }, [currentLang]);
 
-  // Dynamic Advisory Logic
-  const getAdvisory = (weatherId: number) => {
-    if (weatherId >= 200 && weatherId <= 531) {
-      return { icon: "⚠️", text: "बारिश की संभावना है। कृपया अपनी फसल को ढक कर रखें और आज मंडी जाने से बचें।" };
+  // Helper function to determine the advisory UI based on the condition & weatherId
+  const getAdvisoryDetails = (condition: string = '', weatherId?: number) => {
+    // Check for bad weather keywords (case-insensitive)
+    const badWeather = [
+      'घनघोर बादल', 'काले बादल', 'भारी बादल', 'बारिश', 'वर्षा', 'बूंदाबांदी', 'तूफान', 'आंधी', 'बादल',
+      'rain', 'storm', 'cloudy', 'overcast', 'drizzle', 'thunderstorm',
+      'ਮੀਂਹ', 'ਤੂਫ਼ਾਨ', 'ਬੱਦਲ'
+    ];
+    const desc = condition.toLowerCase();
+    const isBadWeather = 
+      (weatherId !== undefined && ((weatherId >= 200 && weatherId <= 531) || weatherId === 804)) ||
+      badWeather.some(kw => desc.includes(kw));
+
+    if (isBadWeather) {
+      let text = "बारिश की संभावना है! कृपया अपनी फसल को तिरपाल से ढकें और मंडी जाने से बचें।";
+      if (currentLang === 'en') {
+        text = "Rain or heavy clouds expected! Please cover your harvest with tarpaulin and avoid going to the mandi today.";
+      } else if (currentLang === 'pa') {
+        text = "ਮੀਂਹ ਪੈਣ ਦੀ ਸੰਭਾਵਨਾ ਹੈ! ਕਿਰਪਾ ਕਰਕੇ ਆਪਣੀ ਫ਼ਸਲ ਨੂੰ ਤਰਪਾਲ ਨਾਲ ਢੱਕੋ ਅਤੇ ਮੰਡੀ ਜਾਣ ਤੋਂ ਬਚੋ।";
+      }
+      return {
+        text,
+        icon: "⛈️",
+        bgClass: "bg-red-50",
+        textClass: "text-red-700",
+        borderClass: "border-red-200"
+      };
     }
-    if (weatherId === 800 || weatherId === 801) {
-      return { icon: "☀️", text: "मौसम साफ़ है। फसल की कटाई और मंडी ले जाने के लिए एकदम सही समय है।" };
+
+    // Default / Good weather
+    let text = "मौसम साफ है। आप मंडी के लिए निकल सकते हैं।";
+    if (currentLang === 'en') {
+      text = "Weather is clear. You can safely proceed to the mandi.";
+    } else if (currentLang === 'pa') {
+      text = "ਮੌਸਮ ਸਾਫ਼ ਹੈ। ਤੁਸੀਂ ਮੰਡੀ ਲਈ ਨਿਕਲ ਸਕਦੇ ਹੋ।";
     }
-    return { icon: "⛅", text: "मौसम सामान्य है। आप मंडी के लिए निकल सकते हैं।" };
+    return {
+      text,
+      icon: "☀️",
+      bgClass: "bg-green-50",
+      textClass: "text-green-800",
+      borderClass: "border-green-200"
+    };
   };
 
   if (loading) {
     return (
       <div className="p-4 border border-slate-200 rounded-3xl animate-pulse bg-soil-50 text-xs font-semibold text-slate-600 mb-4">
-        मौसम की जानकारी लोड हो रही है...
+        {currentLang === 'en' ? 'Loading weather details...' : currentLang === 'pa' ? 'ਮੌਸਮ ਦੀ ਜਾਣਕਾਰੀ ਲੋਡ ਹੋ ਰਹੀ ਹੈ...' : 'मौसम की जानकारी लोड हो रही है...'}
       </div>
     );
   }
 
   if (error || !weather) return null; // Hide widget if fetch fails
 
-  const advisory = getAdvisory(weather.weather[0].id);
+  const condition = weather.weather[0]?.description || '';
+  const weatherId = weather.weather[0]?.id;
+  const advisory = getAdvisoryDetails(condition, weatherId);
 
   return (
     <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm mb-4 space-y-3">
@@ -96,7 +135,7 @@ export const WeatherAdvisoryWidget = () => {
           )}
           <div>
             <h3 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">
-              WEATHER & HARVEST ADVISORY
+              {currentLang === 'en' ? 'WEATHER & HARVEST ADVISORY' : currentLang === 'pa' ? 'ਮੌਸਮ ਅਤੇ ਵਾਢੀ ਸਲਾਹ' : 'मौसम और कटाई सलाह'}
             </h3>
             <p className="text-[11px] text-slate-500 font-medium">
               📍 Live GPS: {weather.name}
@@ -111,25 +150,35 @@ export const WeatherAdvisoryWidget = () => {
 
       <div className="grid grid-cols-3 gap-2 text-center text-xs border-t border-b border-slate-100 py-2.5">
         <div>
-          <span className="text-slate-400 block text-[10px] font-semibold">Condition</span>
-          <span className="font-extrabold text-slate-800 capitalize">{weather.weather[0].description}</span>
+          <span className="text-slate-400 block text-[10px] font-semibold">
+            {currentLang === 'en' ? 'Condition' : currentLang === 'pa' ? 'ਹਾਲਤ' : 'स्थिति'}
+          </span>
+          <span className="font-extrabold text-slate-800 capitalize">{condition}</span>
         </div>
         <div className="border-l border-r border-slate-100">
-          <span className="text-slate-400 block text-[10px] font-semibold">Humidity</span>
+          <span className="text-slate-400 block text-[10px] font-semibold">
+            {currentLang === 'en' ? 'Humidity' : currentLang === 'pa' ? 'ਨਮੀ' : 'नमी'}
+          </span>
           <span className="font-extrabold text-slate-800">{weather.main.humidity}%</span>
         </div>
         <div>
-          <span className="text-slate-400 block text-[10px] font-semibold">Wind</span>
+          <span className="text-slate-400 block text-[10px] font-semibold">
+            {currentLang === 'en' ? 'Wind' : currentLang === 'pa' ? 'ਹਵਾ' : 'हवा'}
+          </span>
           <span className="font-extrabold text-slate-800">{Math.round(weather.wind.speed * 3.6)} km/h</span>
         </div>
       </div>
 
-      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 text-xs text-emerald-950 font-semibold flex gap-2 items-start">
-        <span className="text-base shrink-0">{advisory.icon}</span>
-        <p className="leading-relaxed">{advisory.text}</p>
+      {/* Dynamic Advisory Banner */}
+      <div className={`rounded-2xl p-3 text-xs font-semibold flex items-center gap-3 border ${advisory.bgClass} ${advisory.borderClass}`}>
+        <span className="text-xl shrink-0">{advisory.icon}</span>
+        <span className={`leading-relaxed font-medium ${advisory.textClass}`}>
+          {advisory.text}
+        </span>
       </div>
     </div>
   );
 };
 
 export default WeatherAdvisoryWidget;
+
