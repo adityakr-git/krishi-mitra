@@ -8,8 +8,9 @@ import {
   ArrowUpRight,
   Receipt
 } from 'lucide-react';
-import { Token, TokenStatus } from '../../../types';
+import { Token } from '../../../types';
 import { useTranslation } from '../../../i18n/useTranslation';
+import { ProcurementTracker } from '../ProcurementTracker';
 
 interface HistoryTabProps {
   displayToken: Token;
@@ -66,29 +67,6 @@ const PAST_SALES: PastSale[] = [
 export const HistoryTab: React.FC<HistoryTabProps> = ({ displayToken }) => {
   const { t, language } = useTranslation();
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
-
-  // 5-Stage Procurement Steps
-  const simpleTrackerSteps = [
-    { id: 1, labelKey: 'step1' as const, statusKey: 'SCHEDULED' },
-    { id: 2, labelKey: 'step2' as const, statusKey: 'ARRIVED' },
-    { id: 3, labelKey: 'step3' as const, statusKey: 'QUALITY_CHECK' },
-    { id: 4, labelKey: 'step4' as const, statusKey: 'WEIGHING' },
-    { id: 5, labelKey: 'step5' as const, statusKey: 'COMPLETED' },
-  ];
-
-  const getStepProgress = (currentStatus: TokenStatus) => {
-    switch (currentStatus) {
-      case 'SCHEDULED': return 1;
-      case 'ARRIVED': return 2;
-      case 'QUALITY_CHECK': return 3;
-      case 'WEIGHING': return 4;
-      case 'PAYMENT_PROCESSING': return 4;
-      case 'COMPLETED': return 5;
-      default: return 1;
-    }
-  };
-
-  const currentStep = getStepProgress(displayToken.status);
 
   const handleDownloadReceipt = (sale: PastSale) => {
     setDownloadNotice(
@@ -169,57 +147,8 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ displayToken }) => {
         </div>
       </div>
 
-      {/* 5-Step Procurement Progress Tracker for Current Token */}
-      <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-200 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-            {t('procurement_progress')} (#{displayToken.id})
-          </h2>
-          <span className="text-[11px] font-bold text-forest bg-forest-pale px-2 py-0.5 rounded-full">
-            {t('step_of', { current: currentStep, total: 5 })}
-          </span>
-        </div>
-
-        <div className="space-y-3">
-          {simpleTrackerSteps.map((step) => {
-            const isCompleted = step.id < currentStep;
-            const isCurrent = step.id === currentStep;
-
-            return (
-              <div key={step.id} className="flex items-center gap-3">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
-                  isCompleted 
-                    ? 'bg-forest text-white' 
-                    : isCurrent 
-                    ? 'bg-amber-gold text-slate-950 ring-4 ring-amber-100 font-extrabold' 
-                    : 'bg-slate-100 text-slate-400'
-                }`}>
-                  {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : step.id}
-                </div>
-
-                <div className="flex-1 flex items-center justify-between">
-                  <span className={`text-xs font-semibold ${
-                    isCurrent ? 'text-slate-900 font-bold' : isCompleted ? 'text-forest' : 'text-slate-400'
-                  }`}>
-                    {t(step.labelKey)}
-                  </span>
-
-                  {isCurrent && (
-                    <span className="text-[10px] font-bold text-amber-deep bg-amber-50 px-2 py-0.5 rounded-full">
-                      {t('in_progress')}
-                    </span>
-                  )}
-                  {isCompleted && (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                      {t('done')}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Dynamic 5-Step Procurement Progress Tracker */}
+      <ProcurementTracker farmerId={displayToken.farmerId} tokenId={displayToken.id} />
 
       {/* Past Procurements Sales Ledger */}
       <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-200 space-y-3">

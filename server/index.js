@@ -3,11 +3,15 @@ const cors = require('cors');
 const http = require('http');
 const { Server: SocketIOServer } = require('socket.io');
 const { PrismaClient } = require('@prisma/client');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
 const prisma = new PrismaClient();
 const app = express();
 const server = http.createServer(app);
+
+// Initialize Gemini (GEMINI_API_KEY from environment)
+const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
 
 // CORS Configuration
 const allowedOrigins = [
@@ -181,31 +185,31 @@ app.post('/api/officer/scan-qr', async (req, res) => {
     if (booking) {
       booking = await prisma.booking.update({
         where: { id: cleanId },
-        data: { status: 'WAITING' }
+        data: { status: 'ARRIVED' }
       });
     } else {
       // Upsert / Create booking record so demo tokens or freshly generated tokens are registered
       booking = await prisma.booking.upsert({
         where: { id: cleanId },
-        update: { status: 'WAITING' },
+        update: { status: 'ARRIVED' },
         create: {
           id: cleanId,
           farmerId: 'HR-GUR-2024-8841',
           farmerName: 'Ramesh Kumar',
           crop: 'Wheat (Kanak)',
           quantity: 40.0,
-          status: 'WAITING'
+          status: 'ARRIVED'
         }
       });
     }
 
     // Broadcast real-time gate entry event via Socket.io
     io.emit('booking_status_updated', booking);
-    io.emit('gate_entry_scanned', { bookingId: booking.id, status: 'WAITING' });
+    io.emit('gate_entry_scanned', { bookingId: booking.id, status: 'ARRIVED' });
 
     res.json({
       success: true,
-      message: "किसान का गेट प्रवेश सफल (Gate entry successful. Status: Waiting)",
+      message: "किसान का गेट प्रवेश सफल (Gate entry successful. Status: Arrived)",
       booking
     });
   } catch (error) {
@@ -250,6 +254,128 @@ app.get('/api/bookings', async (req, res) => {
   } catch (error) {
     console.error('Fetch bookings error:', error);
     res.status(500).json({ success: false, error: "बुकिंग प्राप्त करने में त्रुटि।" });
+  }
+});
+
+// 8. Gemini AI Assistant Chat API
+app.post('/api/ai/chat', async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    if (!message || !message.trim()) {
+      return res.status(400).json({ success: false, error: "कृपया अपना प्रश्न लिखें।" });
+    }
+
+    // Try Google Gemini API if API key is provided
+    if (genAI) {
+      try {
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        const prompt = `
+          You are 'Krishi Mitra', a helpful and polite AI assistant for Indian farmers. 
+          Answer the following query in simple, easy-to-understand Hindi. 
+          Keep the answer short (2-3 sentences max). 
+          If asked about crop prices, give a generic positive answer mentioning MSP.
+          If asked about token status, advise them to check the 'Khata' (Account) tab.
+          
+          Farmer Query: ${message}
+        `;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+
+        if (text && text.trim()) {
+          return res.json({ success: true, reply: text.trim() });
+        }
+      } catch (geminiErr) {
+        console.error("Gemini API Error (fallback used):", geminiErr.message || geminiErr);
+      }
+    }
+
+    // Intelligent Hindi Fallback Response Engine
+    const lower = message.toLowerCase();
+    let reply = "नमस्ते किसान भाई! आपकी सेवा में कृषि मित्र हाजिर है। फसल, मंडी भाव या टोकन के बारे में कुछ भी पूछें।";
+
+    if (lower.includes('नंबर') || lower.includes('number') || lower.includes('कब आएगा') || lower.includes('बारी') || lower.includes('टोकन') || lower.includes('token') || lower.includes('wait') || lower.includes('कतार')) {
+      reply = "किसान भाई, आपके टोकन की लाइव स्थिति और खरीद प्रगति 'खाता' (History) टैब में उपलब्ध है। वहां आप अपनी कतार देख सकते हैं।";
+    } else if (lower.includes('भाव') || lower.includes('रेट') || lower.includes('rate') || lower.includes('price') || lower.includes('msp') || lower.includes('गेहूं') || lower.includes('wheat')) {
+      reply = "किसान भाई, आज गेहूं का सरकारी एमएसपी ₹2,275 प्रति क्विंटल है और नजदीकी मंडियों में अच्छी खरीद हो रही है।";
+    } else if (lower.includes('सरसों') || lower.includes('mustard')) {
+      reply = "किसान भाई, सरसों का सरकारी समर्थन मूल्य ₹5,650 प्रति क्विंटल है। आप अपनी सूखी और साफ फसल ला सकते हैं।";
+    } else if (lower.includes('पैसे') || lower.includes('रुपये') || lower.includes('खाता') || lower.includes('dbt') || lower.includes('payment')) {
+      reply = "किसान भाई, तौल एवं गुणवत्ता जांच पूरी होते ही राशि सीधे आपके बैंक खाते में DBT द्वारा भेज दी जाएगी।";
+    } else if (lower.includes('मौसम') || lower.includes('weather') || lower.includes('बारिश')) {
+      reply = "किसान भाई, आज मौसम बिल्कुल साफ रहने का अनुमान है। फसल मंडी लाने के लिए आज का दिन अनुकूल है।";
+    }
+
+    return res.json({ success: true, reply });
+  } catch (error) {
+    console.error("AI Chat Route Error:", error);
+    res.status(500).json({ success: false, error: "AI Assistant is currently unavailable." });
+  }
+});
+
+// 9. Fetch Dynamic Booking Status for 5-Step Tracker
+app.get('/api/farmer/booking-status/:farmerId', async (req, res) => {
+  try {
+    const { farmerId } = req.params;
+
+    // Fetch the most recent active booking for this farmer or matching token id
+    const booking = await prisma.booking.findFirst({
+      where: {
+        OR: [
+          { farmerId: farmerId },
+          { id: farmerId },
+          { id: { contains: farmerId, mode: 'insensitive' } }
+        ]
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!booking) {
+      return res.json({ success: true, status: 'NO_BOOKING' });
+    }
+
+    res.json({
+      success: true,
+      status: booking.status,
+      bookingId: booking.id,
+      crop: booking.crop,
+      quantity: booking.quantity
+    });
+  } catch (error) {
+    console.error("Fetch booking status error:", error);
+    res.status(500).json({ success: false, error: "Failed to fetch status" });
+  }
+});
+
+// 10. Update Token Status (Yard Operations: Quality Check, Weighing, Paid)
+app.post('/api/farmer/update-status', async (req, res) => {
+  try {
+    const { bookingId, status } = req.body;
+    if (!bookingId || !status) {
+      return res.status(400).json({ success: false, error: "bookingId and status are required." });
+    }
+
+    const cleanId = String(bookingId).trim();
+    const updated = await prisma.booking.upsert({
+      where: { id: cleanId },
+      update: { status },
+      create: {
+        id: cleanId,
+        farmerId: 'HR-GUR-2024-8841',
+        crop: 'Wheat (Kanak)',
+        quantity: 40.0,
+        status
+      }
+    });
+
+    io.emit('booking_status_updated', updated);
+    res.json({ success: true, booking: updated });
+  } catch (error) {
+    console.error("Update status error:", error);
+    res.status(500).json({ success: false, error: "Failed to update status" });
   }
 });
 

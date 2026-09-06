@@ -14,6 +14,7 @@ import { Token } from '../../../types';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { MandiBhavTicker } from '../MandiBhavTicker';
 import { WeatherAdvisoryWidget } from '../WeatherAdvisoryWidget';
+import { ProcurementTracker } from '../ProcurementTracker';
 
 interface HomeTabProps {
   farmerName: string;
@@ -201,6 +202,9 @@ export const HomeTab: React.FC<HomeTabProps> = ({
         </div>
 
       </div>
+
+      {/* Dynamic 5-Step Procurement Progress Tracker */}
+      <ProcurementTracker farmerId={displayToken.farmerId} tokenId={displayToken.id} />
 
       {/* Quick Utility Action: Crop Pre-Check (Full-width card, Book Slot moved to Center FAB) */}
       <div className="pt-1">

@@ -18,9 +18,9 @@ class SocketService {
       return this.socket;
     }
 
-    // Connect to backend server on port 5001 or configured Render production URL
+    // Connect to backend server on port 5000 or configured Render production URL
     const rawBackendUrl = import.meta.env.VITE_BACKEND_URL;
-    const socketUrl = rawBackendUrl ? rawBackendUrl.trim().replace(/\/+$/, '') : 'http://localhost:5001';
+    const socketUrl = rawBackendUrl ? rawBackendUrl.trim().replace(/\/api\/?$/, '').replace(/\/+$/, '') : 'http://localhost:5000';
     
     this.socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
@@ -40,6 +40,13 @@ class SocketService {
       console.log('[SocketService] Disconnected from Real-Time Queue Hub');
     });
 
+    return this.socket;
+  }
+
+  getSocket(): Socket | null {
+    if (!this.socket) {
+      return this.connect();
+    }
     return this.socket;
   }
 

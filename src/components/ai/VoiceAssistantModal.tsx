@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, X, Bot, User, Sparkles, Send, Volume2 } from 'lucide-react';
 import { useProcurementStore } from '../../store/useProcurementStore';
 import { useKrishiVoice } from '../../hooks/useKrishiVoice';
+import { API_BASE_URL } from '../../utils/api';
 
 interface Message {
   sender: 'user' | 'bot';
@@ -25,6 +26,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   const onClose = externalOnClose || (() => setInternalIsOpen(false));
 
   const [inputText, setInputText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       sender: 'bot',
@@ -40,7 +42,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   // Auto scroll messages to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isOpen]);
+  }, [messages, isOpen, isLoading]);
 
   // Robust Krishi Voice Hook
   const { isListening, startListening, stopListening, speak } = useKrishiVoice((transcript) => {
@@ -85,37 +87,63 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   }, [isOpen, autoStart, startListening]);
 
   /**
-   * AI Farmer Persona Engine (< 2 sentences, respectful Hindi, zero technical jargon)
+   * Gemini AI Powered Farmer Assistant Engine
    */
-  const handleSendMessage = (query: string) => {
-    if (!query.trim()) return;
+  const handleSendMessage = async (query: string) => {
+    if (!query.trim() || isLoading) return;
 
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const userMsg: Message = { sender: 'user', text: query, time: timeNow };
     setMessages((prev) => [...prev, userMsg]);
+    setIsLoading(true);
 
-    const lower = query.toLowerCase();
-    let reply = '';
+    try {
+      const apiUrl = (import.meta as any).env?.VITE_BACKEND_URL || API_BASE_URL;
+      const response = await fetch(`${apiUrl}/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: query })
+      });
 
-    if (lower.includes('नंबर') || lower.includes('number') || lower.includes('कब आएगा') || lower.includes('time') || lower.includes('कतार') || lower.includes('wait') || lower.includes('बारी')) {
-      reply = `नमस्ते किसान भाई! आपका टोकन A 142 कतार में ${activeToken.queuePosition} नंबर पर है और लगभग ${activeToken.estimatedWaitMinutes} मिनट में आपकी बारी आ जाएगी।`;
-    } else if (lower.includes('भाव') || lower.includes('रेट') || lower.includes('rate') || lower.includes('price') || lower.includes('msp') || lower.includes('गेहूं')) {
-      reply = `किसान भाई, आज गेहूं का सरकारी एमएसपी ₹2,275 है और बादशाहपुर मंडी में ₹2,300 का अच्छा भाव मिल रहा है।`;
-    } else if (lower.includes('पैसे') || lower.includes('रुपये') || lower.includes('payment') || lower.includes('खाता') || lower.includes('dbt')) {
-      reply = `किसान भाई, तौल पूरा होते ही आपकी ₹91,000 की राशि सीधे आपके बैंक खाते में भेज दी जाएगी। कोई भी कटौती नहीं होगी।`;
-    } else if (lower.includes('मौसम') || lower.includes('weather') || lower.includes('बारिश') || lower.includes('धूप')) {
-      reply = `किसान भाई, आज मौसम बिल्कुल साफ रहेगा और बारिश की कोई संभावना नहीं है। आप आराम से अपनी फसल मंडी ला सकते हैं।`;
-    } else if (lower.includes('सरसों') || lower.includes('mustard')) {
-      reply = `किसान भाई, सरसों का सरकारी भाव ₹5,650 है और सोहना मंडी में ₹5,720 तक का बढ़िया रेट चल रहा है।`;
-    } else {
-      reply = `नमस्ते किसान भाई! आपकी सेवा में कृषि मित्र हाजिर है, बताइए आज आपकी क्या सहायता करूं?`;
-    }
+      const data = await response.json();
+      let reply = '';
 
-    setTimeout(() => {
-      setMessages((prev) => [...prev, { sender: 'bot', text: reply, time: timeNow }]);
-      // Automatically speaks the entire generated Hindi sentence out loud!
+      if (data.success && data.reply) {
+        reply = data.reply;
+      } else {
+        reply = data.error || 'माफ़ करें किसान भाई, अभी जानकारी लोड नहीं हो सकी।';
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        { sender: 'bot', text: reply, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+      ]);
       speak(reply);
-    }, 250);
+    } catch (error) {
+      console.warn('[VoiceAssistant] API call failed, using intelligent offline response:', error);
+      const lower = query.toLowerCase();
+      let fallbackReply = 'नमस्ते किसान भाई! आपकी सेवा में कृषि मित्र हाजिर है।';
+
+      if (lower.includes('नंबर') || lower.includes('number') || lower.includes('बारी') || lower.includes('wait') || lower.includes('कब आएगा') || lower.includes('कतार')) {
+        fallbackReply = `किसान भाई, आपका टोकन ${activeToken?.id || 'A-142'} कतार में ${activeToken?.queuePosition || 1} नंबर पर है। लगभग ${activeToken?.estimatedWaitMinutes || 10} मिनट में आपकी बारी आ जाएगी।`;
+      } else if (lower.includes('भाव') || lower.includes('रेट') || lower.includes('msp') || lower.includes('गेहूं') || lower.includes('price')) {
+        fallbackReply = 'किसान भाई, आज गेहूं का सरकारी समर्थन मूल्य (MSP) ₹2,275 प्रति क्विंटल है और बादशाहपुर मंडी में अच्छा भाव मिल रहा है।';
+      } else if (lower.includes('पैसे') || lower.includes('खाता') || lower.includes('dbt') || lower.includes('payment')) {
+        fallbackReply = 'किसान भाई, तौल पूरा होते ही आपकी राशि सीधे आपके बैंक खाते में DBT द्वारा जमा करा दी जाएगी।';
+      } else if (lower.includes('मौसम') || lower.includes('weather') || lower.includes('बारिश')) {
+        fallbackReply = 'किसान भाई, आज मौसम साफ है और बारिश की कोई संभावना नहीं है। आप आराम से मंडी आ सकते हैं।';
+      } else {
+        fallbackReply = 'नमस्ते किसान भाई! बताइए आज मैं आपकी क्या सहायता करूं?';
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        { sender: 'bot', text: fallbackReply, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+      ]);
+      speak(fallbackReply);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const sampleFarmerQuestions = [
@@ -221,6 +249,17 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                   )}
                 </div>
               ))}
+              {isLoading && (
+                <div className="flex items-start gap-2.5 justify-start animate-fade-in">
+                  <div className="w-8 h-8 rounded-full bg-forest text-white flex items-center justify-center text-xs shrink-0 mt-0.5">
+                    <Bot className="w-4 h-4 text-forest-accent animate-pulse" />
+                  </div>
+                  <div className="p-3 bg-white text-slate-600 border border-slate-200 rounded-2xl rounded-tl-none text-xs flex items-center gap-2 shadow-2xs">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" />
+                    <span className="font-semibold text-forest">कृषि मित्र सोच रहा है...</span>
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
 
