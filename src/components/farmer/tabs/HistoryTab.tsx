@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { Token } from '../../../types';
 import { useTranslation } from '../../../i18n/useTranslation';
-import { ProcurementTracker } from '../ProcurementTracker';
 
 interface HistoryTabProps {
   displayToken: Token;
@@ -146,9 +145,6 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ displayToken }) => {
           </span>
         </div>
       </div>
-
-      {/* Dynamic 5-Step Procurement Progress Tracker */}
-      <ProcurementTracker farmerId={displayToken.farmerId} tokenId={displayToken.id} />
 
       {/* Past Procurements Sales Ledger */}
       <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-200 space-y-3">
