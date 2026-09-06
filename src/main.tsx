@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.tsx';
 import { AccessibilityProvider } from './context/AccessibilityContext';
+import { LanguageProvider } from './context/LanguageContext';
 
 // Register Service Worker for PWA village offline resilience
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator && import.meta.env.PROD) {
@@ -17,8 +18,10 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator && import.meta
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AccessibilityProvider>
-      <App />
-    </AccessibilityProvider>
+    <LanguageProvider>
+      <AccessibilityProvider>
+        <App />
+      </AccessibilityProvider>
+    </LanguageProvider>
   </StrictMode>,
 );

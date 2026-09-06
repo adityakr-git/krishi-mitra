@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, X, Bot, User, Sparkles, Send, Volume2 } from 'lucide-react';
 import { useProcurementStore } from '../../store/useProcurementStore';
 import { useKrishiVoice } from '../../hooks/useKrishiVoice';
+import { useLanguage } from '../../context/LanguageContext';
 import { API_BASE_URL } from '../../utils/api';
 
 interface Message {
@@ -16,6 +17,22 @@ interface VoiceAssistantModalProps {
   autoStart?: boolean;
 }
 
+const greetings: Record<string, string> = {
+  hi: 'नमस्ते किसान भाई! मैं कृषि मित्र हूँ। अपनी फसल, टोकन नंबर या मंडी भाव के बारे में कुछ भी पूछिए।',
+  en: 'Hello farmer friend! I am Krishi Mitra. Ask me anything about crop prices, token status, or weather.',
+  pa: 'ਸਤਿ ਸ਼੍ਰੀ ਅਕਾਲ ਕਿਸਾਨ ਵੀਰੋ! ਮੈਂ ਕ੍ਰਿਸ਼ੀ ਮਿੱਤਰ ਹਾਂ। ਫ਼ਸਲ, ਮੰਡੀ ਭਾਅ ਜਾਂ ਟੋਕਨ ਬਾਰੇ ਕੁਝ ਵੀ ਪੁੱਛੋ।',
+  mr: 'नमस्कार शेतकरी बंधूंनो! मी कृषी मित्र आहे. पिकांचे भाव, टोकन किंवा हवामानाबद्दल काहीही विचारा.',
+  bn: 'নমস্কার কৃষক বন্ধু! আমি কৃষি মিত্র। ফসল, টোকেন বা মান্ডি দর সম্পর্কে যেকোনো কিছু জিজ্ঞাসা করুন।'
+};
+
+const sampleFarmerQuestionsMap: Record<string, string[]> = {
+  hi: ['मेरा नंबर कब आएगा?', 'आज गेहूं का मंडी भाव क्या है?', 'मेरे पैसे कब खाते में आएंगे?', 'आज का मौसम कैसा रहेगा?'],
+  en: ['When is my turn?', "What is today's wheat MSP?", 'When will DBT money arrive?', "How is today's weather?"],
+  pa: ['ਮੇਰਾ ਨੰਬਰ ਕਦੋਂ ਆਵੇਗਾ?', 'ਅੱਜ ਕਣਕ ਦਾ ਮੰਡੀ ਭਾਅ ਕੀ ਹੈ?', 'ਖਾਤੇ ਵਿੱਚ ਪੈਸੇ ਕਦੋਂ ਆਉਣਗੇ?', 'ਅੱਜ ਦਾ ਮੌਸਮ ਕਿਹੋ ਜਿਹਾ ਰਹੇਗਾ?'],
+  mr: ['माझा नंबर कधी येईल?', 'आज गव्हाचा हमीभाव काय आहे?', 'खात्यात पैसे कधी जमा होतील?', 'आजचे हवामान कसे राहील?'],
+  bn: ['আমার পালা কখন আসবে?', 'আজ গমের মান্ডি দর কত?', 'অ্যাকাউন্টে টাকা কখন ঢুকবে?', 'আজকের আবহাওয়া কেমন থাকবে?']
+};
+
 export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ 
   isOpen: externalIsOpen, 
   onClose: externalOnClose,
@@ -25,15 +42,33 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
   const onClose = externalOnClose || (() => setInternalIsOpen(false));
 
+  const { currentLang, t } = useLanguage();
+
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
+  const [messages, setMessages] = useState<Message[]>(() => [
     {
       sender: 'bot',
-      text: 'नमस्ते किसान भाई! मैं कृषि मित्र हूँ। अपनी फसल, टोकन नंबर या मंडी भाव के बारे में कुछ भी पूछिए।',
+      text: greetings[currentLang] || greetings.hi,
       time: 'Just now'
     }
   ]);
+
+  // Update initial bot greeting if user toggles language and no chat has happened yet
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length <= 1) {
+        return [
+          {
+            sender: 'bot',
+            text: greetings[currentLang] || greetings.hi,
+            time: 'Just now'
+          }
+        ];
+      }
+      return prev;
+    });
+  }, [currentLang]);
 
   const { activeToken } = useProcurementStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -44,7 +79,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isOpen, isLoading]);
 
-  // Robust Krishi Voice Hook
+  // Robust Krishi Voice Hook with active regional language
   const { isListening, startListening, stopListening, speak } = useKrishiVoice((transcript) => {
     // Stream real-time text directly into the input box
     setInputText(transcript);
@@ -60,7 +95,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
         stopListening();
       }
     }, 1500);
-  });
+  }, currentLang);
 
   // Cleanup speech recognition and timers on modal close/unmount
   useEffect(() => {
@@ -87,7 +122,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   }, [isOpen, autoStart, startListening]);
 
   /**
-   * Gemini AI Powered Farmer Assistant Engine
+   * Multi-Lingual Gemini AI Powered Farmer Assistant Engine
    */
   const handleSendMessage = async (query: string) => {
     if (!query.trim() || isLoading) return;
@@ -102,7 +137,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       const response = await fetch(`${apiUrl}/ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: query })
+        body: JSON.stringify({ message: query, language: currentLang })
       });
 
       const data = await response.json();
@@ -111,47 +146,97 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       if (data.success && data.reply) {
         reply = data.reply;
       } else {
-        reply = data.error || 'माफ़ करें किसान भाई, अभी जानकारी लोड नहीं हो सकी।';
+        reply = data.error || (currentLang === 'en' ? 'Sorry farmer friend, could not load data.' : 'माफ़ करें किसान भाई, अभी जानकारी लोड नहीं हो सकी।');
       }
 
       setMessages((prev) => [
         ...prev,
         { sender: 'bot', text: reply, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
       ]);
-      speak(reply);
+      speak(reply, currentLang);
     } catch (error) {
       console.warn('[VoiceAssistant] API call failed, using intelligent offline response:', error);
       const lower = query.toLowerCase();
-      let fallbackReply = 'नमस्ते किसान भाई! आपकी सेवा में कृषि मित्र हाजिर है।';
+      let fallbackReply = '';
 
-      if (lower.includes('नंबर') || lower.includes('number') || lower.includes('बारी') || lower.includes('wait') || lower.includes('कब आएगा') || lower.includes('कतार')) {
-        fallbackReply = `किसान भाई, आपका टोकन ${activeToken?.id || 'A-142'} कतार में ${activeToken?.queuePosition || 1} नंबर पर है। लगभग ${activeToken?.estimatedWaitMinutes || 10} मिनट में आपकी बारी आ जाएगी।`;
-      } else if (lower.includes('भाव') || lower.includes('रेट') || lower.includes('msp') || lower.includes('गेहूं') || lower.includes('price')) {
-        fallbackReply = 'किसान भाई, आज गेहूं का सरकारी समर्थन मूल्य (MSP) ₹2,275 प्रति क्विंटल है और बादशाहपुर मंडी में अच्छा भाव मिल रहा है।';
-      } else if (lower.includes('पैसे') || lower.includes('खाता') || lower.includes('dbt') || lower.includes('payment')) {
-        fallbackReply = 'किसान भाई, तौल पूरा होते ही आपकी राशि सीधे आपके बैंक खाते में DBT द्वारा जमा करा दी जाएगी।';
-      } else if (lower.includes('मौसम') || lower.includes('weather') || lower.includes('बारिश')) {
-        fallbackReply = 'किसान भाई, आज मौसम साफ है और बारिश की कोई संभावना नहीं है। आप आराम से मंडी आ सकते हैं।';
+      if (currentLang === 'en') {
+        fallbackReply = 'Hello farmer friend! Krishi Mitra is at your service.';
+        if (lower.includes('number') || lower.includes('turn') || lower.includes('wait') || lower.includes('queue')) {
+          fallbackReply = `Farmer friend, your token ${activeToken?.id || 'A-142'} is at position ${activeToken?.queuePosition || 1}. Estimated wait is ${activeToken?.estimatedWaitMinutes || 10} minutes.`;
+        } else if (lower.includes('rate') || lower.includes('msp') || lower.includes('wheat') || lower.includes('price')) {
+          fallbackReply = "Today's government MSP for Wheat is ₹2,275 per quintal.";
+        } else if (lower.includes('money') || lower.includes('dbt') || lower.includes('payment') || lower.includes('bank')) {
+          fallbackReply = 'Your payment will be credited directly to your bank account via DBT once weighing is complete.';
+        } else if (lower.includes('weather') || lower.includes('rain')) {
+          fallbackReply = 'Today the weather is clear with no rain expected. You can visit the mandi smoothly.';
+        }
+      } else if (currentLang === 'pa') {
+        fallbackReply = 'ਸਤਿ ਸ਼੍ਰੀ ਅਕਾਲ ਕਿਸਾਨ ਵੀਰੋ! ਕ੍ਰਿਸ਼ੀ ਮਿੱਤਰ ਹਾਜ਼ਰ ਹੈ।';
+        if (lower.includes('ਨੰਬਰ') || lower.includes('ਵਾਰੀ') || lower.includes('ਕਤਾਰ') || lower.includes('wait')) {
+          fallbackReply = `ਕਿਸਾਨ ਵੀਰ ਜੀ, ਤੁਹਾਡਾ ਟੋਕਨ ${activeToken?.id || 'A-142'} ਕਤਾਰ ਵਿੱਚ ${activeToken?.queuePosition || 1} ਨੰਬਰ 'ਤੇ ਹੈ। ਲਗਭਗ ${activeToken?.estimatedWaitMinutes || 10} ਮਿੰਟ ਵਿੱਚ ਵਾਰੀ ਆ ਜਾਵੇਗੀ।`;
+        } else if (lower.includes('ਭਾਅ') || lower.includes('ਰੇਟ') || lower.includes('ਕਣਕ') || lower.includes('msp')) {
+          fallbackReply = 'ਅੱਜ ਕਣਕ ਦਾ ਸਰਕਾਰੀ ਸਮਰਥਨ ਮੁੱਲ (MSP) ₹2,275 ਪ੍ਰਤੀ ਕੁਇੰਟਲ ਹੈ।';
+        } else if (lower.includes('ਪੈਸੇ') || lower.includes('ਖਾਤਾ') || lower.includes('ਡੀ.ਬੀ.ਟੀ')) {
+          fallbackReply = 'ਤੋਲ ਪੂਰਾ ਹੁੰਦੇ ਹੀ ਤੁਹਾਡੀ ਰਕਮ ਸਿੱਧੇ ਬੈਂਕ ਖਾਤੇ ਵਿੱਚ DBT ਰਾਹੀਂ ਜਮ੍ਹਾਂ ਹੋ ਜਾਵੇਗੀ।';
+        } else if (lower.includes('ਮੌਸਮ') || lower.includes('ਮੀਂਹ')) {
+          fallbackReply = 'ਅੱਜ ਮੌਸਮ ਸਾਫ਼ ਹੈ, ਤੁਸੀਂ ਆਰਾਮ ਨਾਲ ਮੰਡੀ ਆ ਸਕਦੇ ਹੋ।';
+        }
+      } else if (currentLang === 'mr') {
+        fallbackReply = 'नमस्कार शेतकरी बंधूंनो! कृषी मित्र आपल्या सेवेत हजर आहे.';
+        if (lower.includes('नंबर') || lower.includes('पाळी') || lower.includes('रांग')) {
+          fallbackReply = `शेतकरी बंधू, तुमचा टोकन ${activeToken?.id || 'A-142'} रांगेत ${activeToken?.queuePosition || 1} क्रमांकावर आहे. अंदाजे ${activeToken?.estimatedWaitMinutes || 10} मिनिटांत तुमची पाळी येईल.`;
+        } else if (lower.includes('भाव') || lower.includes('हमीभाव') || lower.includes('गहू') || lower.includes('दर')) {
+          fallbackReply = 'आज गव्हाचा सरकारी हमीभाव (MSP) ₹2,275 प्रति क्विंटल आहे.';
+        } else if (lower.includes('पैसे') || lower.includes('खाते') || lower.includes('dbt')) {
+          fallbackReply = 'वजन पूर्ण होताच तुमची रक्कम थेट बँक खात्यात DBT द्वारे जमा केली जाईल.';
+        } else if (lower.includes('हवामान') || lower.includes('पाऊस')) {
+          fallbackReply = 'आज हवामान निरभ्र आहे, पावसाची शक्यता नाही.';
+        }
       } else {
-        fallbackReply = 'नमस्ते किसान भाई! बताइए आज मैं आपकी क्या सहायता करूं?';
+        // Hindi Default
+        fallbackReply = 'नमस्ते किसान भाई! आपकी सेवा में कृषि मित्र हाजिर है।';
+        if (lower.includes('नंबर') || lower.includes('number') || lower.includes('बारी') || lower.includes('wait') || lower.includes('कब आएगा') || lower.includes('कतार')) {
+          fallbackReply = `किसान भाई, आपका टोकन ${activeToken?.id || 'A-142'} कतार में ${activeToken?.queuePosition || 1} नंबर पर है। लगभग ${activeToken?.estimatedWaitMinutes || 10} मिनट में आपकी बारी आ जाएगी।`;
+        } else if (lower.includes('भाव') || lower.includes('रेट') || lower.includes('msp') || lower.includes('गेहूं') || lower.includes('price')) {
+          fallbackReply = 'किसान भाई, आज गेहूं का सरकारी समर्थन मूल्य (MSP) ₹2,275 प्रति क्विंटल है और बादशाहपुर मंडी में अच्छा भाव मिल रहा है।';
+        } else if (lower.includes('पैसे') || lower.includes('खाता') || lower.includes('dbt') || lower.includes('payment')) {
+          fallbackReply = 'किसान भाई, तौल पूरा होते ही आपकी राशि सीधे आपके बैंक खाते में DBT द्वारा जमा करा दी जाएगी।';
+        } else if (lower.includes('मौसम') || lower.includes('weather') || lower.includes('बारिश')) {
+          fallbackReply = 'किसान भाई, आज मौसम साफ है और बारिश की कोई संभावना नहीं है। आप आराम से मंडी आ सकते हैं।';
+        } else {
+          fallbackReply = 'नमस्ते किसान भाई! बताइए आज मैं आपकी क्या सहायता करूं?';
+        }
       }
 
       setMessages((prev) => [
         ...prev,
         { sender: 'bot', text: fallbackReply, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
       ]);
-      speak(fallbackReply);
+      speak(fallbackReply, currentLang);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const sampleFarmerQuestions = [
-    'मेरा नंबर कब आएगा?',
-    'आज गेहूं का मंडी भाव क्या है?',
-    'मेरे पैसे कब खाते में आएंगे?',
-    'आज का मौसम कैसा रहेगा?'
-  ];
+  const sampleFarmerQuestions = sampleFarmerQuestionsMap[currentLang] || sampleFarmerQuestionsMap.hi;
+
+  const subtitles: Record<string, string> = {
+    hi: 'सरल हिंदी में किसान सहायता (Audio Enabled)',
+    en: 'Farmer Voice & AI Assistant (Audio Enabled)',
+    pa: 'ਸਰਲ ਪੰਜਾਬੀ ਵਿੱਚ ਕਿਸਾਨ ਸਹਾਇਤਾ (Audio Enabled)',
+    mr: 'सोप्या मराठीत शेतकरी मदत (Audio Enabled)',
+    bn: 'সহজ বাংলায় কৃষক সহায়তা (Audio Enabled)'
+  };
+
+  const placeholders: Record<string, { listening: string; idle: string }> = {
+    hi: { listening: 'माइक चालू है... बोलिए किसान भाई', idle: 'यहाँ बोलें या हिंदी में लिखें...' },
+    en: { listening: 'Listening... Please speak now', idle: 'Speak or type your question...' },
+    pa: { listening: 'ਮਾਈਕ ਚਾਲੂ ਹੈ... ਬੋਲੋ ਕਿਸਾਨ ਵੀਰ ਜੀ', idle: 'ਇੱਥੇ ਬੋਲੋ ਜਾਂ ਲਿਖੋ...' },
+    mr: { listening: 'माइक चालू आहे... बोला शेतकरी बंधू', idle: 'येथे बोला किंवा लिहा...' },
+    bn: { listening: 'মাইক চালু আছে... বলুন কৃষক বন্ধু', idle: 'এখানে বলুন বা লিখুন...' }
+  };
+
+  const activePlaceholder = placeholders[currentLang] || placeholders.hi;
 
   return (
     <>
@@ -187,9 +272,9 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                 </div>
                 <div>
                   <h3 className="font-extrabold text-base tracking-tight flex items-center gap-1.5">
-                    कृषि मित्र आवाज़ साथी <Sparkles className="w-4 h-4 text-amber-300" />
+                    {t('voice_help') || 'कृषि मित्र आवाज़ साथी'} <Sparkles className="w-4 h-4 text-amber-300" />
                   </h3>
-                  <p className="text-xs text-forest-pale">सरल हिंदी में किसान सहायता (Audio Enabled)</p>
+                  <p className="text-xs text-forest-pale">{subtitles[currentLang] || subtitles.hi}</p>
                 </div>
               </div>
               <button
@@ -229,7 +314,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                       {m.sender === 'bot' && (
                         <button
                           type="button"
-                          onClick={() => speak(m.text)}
+                          onClick={() => speak(m.text, currentLang)}
                           title="दोबारा सुनें (Listen again)"
                           className="text-forest hover:text-forest-light flex items-center gap-1 text-[10px] font-bold"
                         >
@@ -256,7 +341,9 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                   </div>
                   <div className="p-3 bg-white text-slate-600 border border-slate-200 rounded-2xl rounded-tl-none text-xs flex items-center gap-2 shadow-2xs">
                     <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" />
-                    <span className="font-semibold text-forest">कृषि मित्र सोच रहा है...</span>
+                    <span className="font-semibold text-forest">
+                      {currentLang === 'en' ? 'Krishi Mitra is thinking...' : 'कृषि मित्र सोच रहा है...'}
+                    </span>
                   </div>
                 </div>
               )}
@@ -322,7 +409,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                     setInputText('');
                   }
                 }}
-                placeholder={isListening ? "माइक चालू है... बोलिए किसान भाई" : "यहाँ बोलें या हिंदी में लिखें..."}
+                placeholder={isListening ? activePlaceholder.listening : activePlaceholder.idle}
                 className="flex-1 bg-soil-100 border border-slate-200 text-slate-900 font-semibold text-xs rounded-2xl px-3.5 py-3 focus:outline-none focus:ring-2 focus:ring-forest"
               />
 

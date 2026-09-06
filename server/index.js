@@ -299,22 +299,32 @@ const handleGetBookings = async (req, res) => {
 app.get('/api/officer/bookings', handleGetBookings);
 app.get('/api/bookings', handleGetBookings);
 
-// 8. Gemini AI Assistant Chat API (Context-Aware Mandi & Weather Data)
+// 8. Gemini AI Assistant Chat API (Multi-Lingual Context-Aware Mandi & Weather Data)
 app.post('/api/ai/chat', async (req, res) => {
   try {
-    const { message } = req.body;
+    const { message, language } = req.body;
 
     if (!message || !message.trim()) {
       return res.status(400).json({ success: false, error: "कृपया अपना प्रश्न लिखें।" });
     }
 
+    // Map language code to human-readable language name
+    const langMap = {
+      hi: 'Hindi',
+      en: 'English',
+      pa: 'Punjabi',
+      mr: 'Marathi',
+      bn: 'Bengali'
+    };
+    const targetLangName = langMap[language] || language || 'Hindi';
+
     // 1. INJECT REAL PLATFORM DATA AS CONTEXT
     const currentMandiDataContext = `
       CURRENT MANDI RATES (MSP):
       - Wheat (गेहूं/Kanak): ₹2,275 per quintal
-      - Mustard (सरसों): ₹5,650 per quintal
-      - Gram (चना): ₹5,440 per quintal
-      - Barley (जौ): ₹1,850 per quintal
+      - Mustard (सरसों/Sarson): ₹5,650 per quintal
+      - Gram (चना/Chana): ₹5,440 per quintal
+      - Barley (जौ/Jau): ₹1,850 per quintal
       - Bajra (बाजरा): ₹2,500 per quintal
 
       WEATHER ALERT:
@@ -322,24 +332,24 @@ app.post('/api/ai/chat', async (req, res) => {
       - Advisory: Rain expected. Advise farmers to cover crops and avoid coming to the mandi today.
     `;
 
-    // 2. CREATE A STRICT SYSTEM PROMPT
+    // 2. CREATE A STRICT MULTI-LINGUAL SYSTEM PROMPT
     const prompt = `
-      You are 'Krishi Mitra Awaaz Saathi', a helpful and polite AI assistant for Indian farmers. 
-      Answer the farmer's query strictly in simple, easy-to-understand Hindi.
-      Keep the answer short (1-2 sentences max) and conversational (address them as 'किसान भाई').
+      You are 'Krishi Mitra Awaaz Saathi', a helpful, polite, and rural-friendly AI assistant for Indian farmers. 
+      CRITICAL INSTRUCTION: You MUST answer the farmer's query STRICTLY in the ${targetLangName} language and script (e.g., Gurmukhi for Punjabi, Devanagari for Hindi/Marathi, Bengali for Bengali, English for English).
+      Keep the answer concise (1-2 sentences maximum) and conversational, addressing the farmer respectfully.
 
       RULES:
-      - If they ask about crop prices, look at the CURRENT MANDI RATES below and give the exact price for that specific crop.
-      - If they ask about weather or if they should come to the mandi, look at the WEATHER ALERT below and advise accordingly.
-      - If they ask about their token, queue, or money, politely say: "किसान भाई, अपने टोकन और भुगतान की ताज़ा जानकारी के लिए कृपया 'खाता' (Account) सेक्शन चेक करें।"
-      - If they ask a generic farming question, give a helpful, short tip.
+      - If they ask about crop prices, look at the CURRENT MANDI RATES below and provide the exact price for that crop in ${targetLangName}.
+      - If they ask about weather or coming to the mandi, look at the WEATHER ALERT below and advise them in ${targetLangName}.
+      - If they ask about their token, queue, or DBT payment, politely advise them in ${targetLangName} to check the 'Account' / 'Khata' (खाता) section on the dashboard.
+      - If they ask a generic farming query, provide a brief, helpful tip in ${targetLangName}.
 
       CONTEXT DATA FOR TODAY:
       ${currentMandiDataContext}
       
       FARMER QUERY: "${message}"
       
-      AI RESPONSE (IN HINDI):
+      AI RESPONSE (IN ${targetLangName.toUpperCase()} ONLY):
     `;
 
     // Try Google Gemini API if API key is provided
@@ -351,36 +361,97 @@ app.post('/api/ai/chat', async (req, res) => {
         const text = response.text();
 
         if (text && text.trim()) {
-          return res.json({ success: true, reply: text.trim() });
+          return res.json({ success: true, reply: text.trim(), language: targetLangName });
         }
       } catch (geminiErr) {
         console.error("Gemini API Error (fallback used):", geminiErr.message || geminiErr);
       }
     }
 
-    // Context-Aware Intelligent Hindi Fallback Engine
+    // Context-Aware Multi-Lingual Fallback Engine
     const lower = message.toLowerCase();
-    let reply = "नमस्ते किसान भाई! आपकी सेवा में कृषि मित्र आवाज़ साथी हाजिर है। फसल, मंडी भाव, टोकन या मौसम के बारे में पूछें।";
+    let reply = "";
 
-    if (lower.includes('सरसों') || lower.includes('सरसो') || lower.includes('mustard') || lower.includes('sarson')) {
-      reply = "किसान भाई, आज सरसों का सरकारी एमएसपी भाव ₹5,650 प्रति क्विंटल है।";
-    } else if (lower.includes('चना') || lower.includes('चने') || lower.includes('gram') || lower.includes('chana')) {
-      reply = "किसान भाई, आज चना का सरकारी एमएसपी रेट ₹5,440 प्रति क्विंटल है।";
-    } else if (lower.includes('जौ') || lower.includes('barley') || lower.includes('jau')) {
-      reply = "किसान भाई, आज जौ का सरकारी एमएसपी भाव ₹1,850 प्रति क्विंटल है।";
-    } else if (lower.includes('बाजरा') || lower.includes('बाजरे') || lower.includes('बाजरी') || lower.includes('bajra') || lower.includes('pearl millet')) {
-      reply = "किसान भाई, आज बाजरा का सरकारी एमएसपी रेट ₹2,500 प्रति क्विंटल है।";
-    } else if (lower.includes('गेहूं') || lower.includes('गेहू') || lower.includes('wheat') || lower.includes('kanak')) {
-      reply = "किसान भाई, आज गेहूं का सरकारी समर्थन मूल्य (MSP) ₹2,275 प्रति क्विंटल है।";
-    } else if (lower.includes('भाव') || lower.includes('रेट') || lower.includes('rate') || lower.includes('price') || lower.includes('msp') || lower.includes('समर्थन मूल्य')) {
-      reply = "किसान भाई, आज गेहूं का सरकारी भाव ₹2,275, सरसों ₹5,650, चना ₹5,440, बाजरा ₹2,500 और जौ ₹1,850 प्रति क्विंटल है।";
-    } else if (lower.includes('मौसम') || lower.includes('weather') || lower.includes('बारिश') || lower.includes('rain') || lower.includes('आऊं') || lower.includes('आएं') || lower.includes('छाता')) {
-      reply = "किसान भाई, आज 26°C तापमान के साथ हल्की वर्षा और 88% नमी की संभावना है। कृपया अपनी फसल ढककर रखें और आज मंडी आने से बचें।";
-    } else if (lower.includes('नंबर') || lower.includes('token') || lower.includes('टोकन') || lower.includes('कतार') || lower.includes('बारी') || lower.includes('पैसे') || lower.includes('रुपये') || lower.includes('dbt') || lower.includes('खाता') || lower.includes('payment')) {
-      reply = "किसान भाई, अपने टोकन और भुगतान की ताज़ा जानकारी के लिए कृपया 'खाता' (Account) सेक्शन चेक करें।";
+    if (targetLangName === 'English') {
+      reply = "Hello farmer friend! Krishi Mitra Voice Assistant is at your service. Ask about crops, mandi MSP rates, token status, or weather.";
+      if (lower.includes('mustard') || lower.includes('sarson')) {
+        reply = "Farmer friend, today's government MSP rate for Mustard is ₹5,650 per quintal.";
+      } else if (lower.includes('gram') || lower.includes('chana')) {
+        reply = "Farmer friend, today's government MSP rate for Gram (Chana) is ₹5,440 per quintal.";
+      } else if (lower.includes('barley') || lower.includes('jau')) {
+        reply = "Farmer friend, today's government MSP rate for Barley is ₹1,850 per quintal.";
+      } else if (lower.includes('bajra') || lower.includes('millet')) {
+        reply = "Farmer friend, today's government MSP rate for Bajra is ₹2,500 per quintal.";
+      } else if (lower.includes('wheat') || lower.includes('gehu')) {
+        reply = "Farmer friend, today's government MSP rate for Wheat is ₹2,275 per quintal.";
+      } else if (lower.includes('rate') || lower.includes('price') || lower.includes('msp') || lower.includes('bhav')) {
+        reply = "Farmer friend, today's MSP rates: Wheat ₹2,275, Mustard ₹5,650, Gram ₹5,440, Bajra ₹2,500, and Barley ₹1,850 per quintal.";
+      } else if (lower.includes('weather') || lower.includes('rain') || lower.includes('come')) {
+        reply = "Farmer friend, light rain is expected today with 26°C and 88% humidity. Please keep your harvest covered and avoid visiting the mandi today.";
+      } else if (lower.includes('token') || lower.includes('number') || lower.includes('turn') || lower.includes('wait') || lower.includes('money') || lower.includes('payment') || lower.includes('dbt')) {
+        reply = "Farmer friend, please check the 'Account' section on your dashboard for live token and DBT payment status.";
+      }
+    } else if (targetLangName === 'Punjabi') {
+      reply = "ਸਤਿ ਸ਼੍ਰੀ ਅਕਾਲ ਕਿਸਾਨ ਵੀਰੋ! ਕ੍ਰਿਸ਼ੀ ਮਿੱਤਰ ਆਵਾਜ਼ ਸਾਥੀ ਹਾਜ਼ਰ ਹੈ। ਫ਼ਸਲ, ਮੰਡੀ ਭਾਅ, ਟੋਕਨ ਜਾਂ ਮੌਸਮ ਬਾਰੇ ਪੁੱਛੋ।";
+      if (lower.includes('ਸਰ੍ਹੋਂ') || lower.includes('ਸਰਸੋਂ') || lower.includes('mustard') || lower.includes('sarson')) {
+        reply = "ਕਿਸਾਨ ਵੀਰ ਜੀ, ਅੱਜ ਸਰ੍ਹੋਂ ਦਾ ਸਰਕਾਰੀ ਐਮ.ਐਸ.ਪੀ ਭਾਅ ₹5,650 ਪ੍ਰਤੀ ਕੁਇੰਟਲ ਹੈ।";
+      } else if (lower.includes('ਛੋਲੇ') || lower.includes('ਚਨਾ') || lower.includes('gram') || lower.includes('chana')) {
+        reply = "ਕਿਸਾਨ ਵੀਰ ਜੀ, ਅੱਜ ਛੋਲਿਆਂ ਦਾ ਸਰਕਾਰੀ ਐਮ.ਐਸ.ਪੀ ਭਾਅ ₹5,440 ਪ੍ਰਤੀ ਕੁਇੰਟਲ ਹੈ।";
+      } else if (lower.includes('ਜੌਂ') || lower.includes('barley') || lower.includes('jau')) {
+        reply = "ਕਿਸਾਨ ਵੀਰ ਜੀ, ਅੱਜ ਜੌਂ ਦਾ ਸਰਕਾਰੀ ਐਮ.ਐਸ.ਪੀ ਭਾਅ ₹1,850 ਪ੍ਰਤੀ ਕੁਇੰਟਲ ਹੈ।";
+      } else if (lower.includes('ਬਾਜਰਾ') || lower.includes('bajra')) {
+        reply = "ਕਿਸਾਨ ਵੀਰ ਜੀ, ਅੱਜ ਬਾਜਰੇ ਦਾ ਸਰਕਾਰੀ ਐਮ.ਐਸ.ਪੀ ਭਾਅ ₹2,500 ਪ੍ਰਤੀ ਕੁਇੰਟਲ ਹੈ।";
+      } else if (lower.includes('ਕਣਕ') || lower.includes('wheat') || lower.includes('kanak')) {
+        reply = "ਕਿਸਾਨ ਵੀਰ ਜੀ, ਅੱਜ ਕਣਕ ਦਾ ਸਰਕਾਰੀ ਐਮ.ਐਸ.ਪੀ ਭਾਅ ₹2,275 ਪ੍ਰਤੀ ਕੁਇੰਟਲ ਹੈ।";
+      } else if (lower.includes('ਭਾਅ') || lower.includes('ਰੇਟ') || lower.includes('rate') || lower.includes('price') || lower.includes('msp')) {
+        reply = "ਕਿਸਾਨ ਵੀਰ ਜੀ, ਅੱਜ ਕਣਕ ਦਾ ਸਰਕਾਰੀ ਭਾਅ ₹2,275, ਸਰ੍ਹੋਂ ₹5,650, ਛੋਲੇ ₹5,440 ਅਤੇ ਜੌਂ ₹1,850 ਪ੍ਰਤੀ ਕੁਇੰਟਲ ਹੈ।";
+      } else if (lower.includes('ਮੌਸਮ') || lower.includes('ਮੀਂਹ') || lower.includes('weather') || lower.includes('rain')) {
+        reply = "ਕਿਸਾਨ ਵੀਰ ਜੀ, ਅੱਜ ਹਲਕੀ ਬਾਰਿਸ਼ ਅਤੇ 88% ਨਮੀ ਦੀ ਸੰਭਾਵਨਾ ਹੈ। ਆਪਣੀ ਫ਼ਸਲ ਢੱਕ ਕੇ ਰੱਖੋ ਅਤੇ ਅੱਜ ਮੰਡੀ ਆਉਣ ਤੋਂ ਬਚੋ।";
+      } else if (lower.includes('ਟੋਕਨ') || lower.includes('ਨੰਬਰ') || lower.includes('ਵਾਰੀ') || lower.includes('ਪੈਸੇ') || lower.includes('ਖਾਤਾ')) {
+        reply = "ਕਿਸਾਨ ਵੀਰ ਜੀ, ਆਪਣੇ ਟੋਕਨ ਅਤੇ ਭੁਗਤਾਨ ਦੀ ਜਾਣਕਾਰੀ ਲਈ ਕਿਰਪਾ ਕਰਕੇ 'ਖਾਤਾ' ਸੈਕਸ਼ਨ ਚੈੱਕ ਕਰੋ।";
+      }
+    } else if (targetLangName === 'Marathi') {
+      reply = "नमस्कार शेतकरी बंधूंनो! कृषी मित्र आवाज साथी हजर आहे. पीक, बाजार भाव, टोकन किंवा हवामानाबद्दल विचारा.";
+      if (lower.includes('मोहरी') || lower.includes('mustard') || lower.includes('sarson')) {
+        reply = "शेतकरी बंधू, आज मोहरीचा सरकारी हमीभाव (MSP) दर ₹5,650 प्रति क्विंटल आहे.";
+      } else if (lower.includes('हरभरा') || lower.includes('चना') || lower.includes('gram') || lower.includes('chana')) {
+        reply = "शेतकरी बंधू, आज हरभऱ्याचा सरकारी हमीभाव दर ₹5,440 प्रति क्विंटल आहे.";
+      } else if (lower.includes('सातू') || lower.includes('जौ') || lower.includes('barley')) {
+        reply = "शेतकरी बंधू, आज सातूचा सरकारी हमीभाव दर ₹1,850 प्रति क्विंटल आहे.";
+      } else if (lower.includes('बाजरी') || lower.includes('बाजरा') || lower.includes('bajra')) {
+        reply = "शेतकरी बंधू, आज बाजरीचा सरकारी हमीभाव दर ₹2,500 प्रति क्विंटल आहे.";
+      } else if (lower.includes('गहू') || lower.includes('गेहूं') || lower.includes('wheat')) {
+        reply = "शेतकरी बंधू, आज गव्हाचा सरकारी हमीभाव दर ₹2,275 प्रति क्विंटल आहे.";
+      } else if (lower.includes('भाव') || lower.includes('दर') || lower.includes('rate') || lower.includes('msp') || lower.includes('price')) {
+        reply = "शेतकरी बंधू, आज गहू ₹2,275, मोहरी ₹5,650, हरभरा ₹5,440, बाजरी ₹2,500 प्रति क्विंटल दर आहे.";
+      } else if (lower.includes('हवामान') || lower.includes('पाऊस') || lower.includes('weather') || lower.includes('rain')) {
+        reply = "शेतकरी बंधू, आज हलक्या पावसाची शक्यता आणि 88% आर्द्रता आहे. कृपया आपले पीक झाकून ठेवा आणि आज बाजारात येणे टाळा.";
+      } else if (lower.includes('टोकन') || lower.includes('नंबर') || lower.includes('पाळी') || lower.includes('पैसे') || lower.includes('खाते')) {
+        reply = "शेतकरी बंधू, आपल्या टोकन आणि खात्यातील जमा रकमेसाठी कृपया 'खाते' (Account) विभाग तपासा.";
+      }
+    } else {
+      // Default: Hindi
+      reply = "नमस्ते किसान भाई! आपकी सेवा में कृषि मित्र आवाज़ साथी हाजिर है। फसल, मंडी भाव, टोकन या मौसम के बारे में पूछें।";
+      if (lower.includes('सरसों') || lower.includes('सरसो') || lower.includes('mustard') || lower.includes('sarson')) {
+        reply = "किसान भाई, आज सरसों का सरकारी एमएसपी भाव ₹5,650 प्रति क्विंटल है।";
+      } else if (lower.includes('चना') || lower.includes('चने') || lower.includes('gram') || lower.includes('chana')) {
+        reply = "किसान भाई, आज चना का सरकारी एमएसपी रेट ₹5,440 प्रति क्विंटल है।";
+      } else if (lower.includes('जौ') || lower.includes('barley') || lower.includes('jau')) {
+        reply = "किसान भाई, आज जौ का सरकारी एमएसपी भाव ₹1,850 प्रति क्विंटल है।";
+      } else if (lower.includes('बाजरा') || lower.includes('बाजरे') || lower.includes('बाजरी') || lower.includes('bajra') || lower.includes('pearl millet')) {
+        reply = "किसान भाई, आज बाजरा का सरकारी एमएसपी रेट ₹2,500 प्रति क्विंटल है।";
+      } else if (lower.includes('गेहूं') || lower.includes('गेहू') || lower.includes('wheat') || lower.includes('kanak')) {
+        reply = "किसान भाई, आज गेहूं का सरकारी समर्थन मूल्य (MSP) ₹2,275 प्रति क्विंटल है।";
+      } else if (lower.includes('भाव') || lower.includes('रेट') || lower.includes('rate') || lower.includes('price') || lower.includes('msp') || lower.includes('समर्थन मूल्य')) {
+        reply = "किसान भाई, आज गेहूं का सरकारी भाव ₹2,275, सरसों ₹5,650, चना ₹5,440, बाजरा ₹2,500 और जौ ₹1,850 प्रति क्विंटल है।";
+      } else if (lower.includes('मौसम') || lower.includes('weather') || lower.includes('बारिश') || lower.includes('rain') || lower.includes('आऊं') || lower.includes('आएं') || lower.includes('छाता')) {
+        reply = "किसान भाई, आज 26°C तापमान के साथ हल्की वर्षा और 88% नमी की संभावना है। कृपया अपनी फसल ढककर रखें और आज मंडी आने से बचें।";
+      } else if (lower.includes('नंबर') || lower.includes('token') || lower.includes('टोकन') || lower.includes('कतार') || lower.includes('बारी') || lower.includes('पैसे') || lower.includes('रुपये') || lower.includes('dbt') || lower.includes('खाता') || lower.includes('payment')) {
+        reply = "किसान भाई, अपने टोकन और भुगतान की ताज़ा जानकारी के लिए कृपया 'खाता' (Account) सेक्शन चेक करें।";
+      }
     }
 
-    return res.json({ success: true, reply });
+    return res.json({ success: true, reply, language: targetLangName });
   } catch (error) {
     console.error("AI Chat Route Error:", error);
     res.status(500).json({ success: false, error: "AI Assistant is currently unavailable." });
