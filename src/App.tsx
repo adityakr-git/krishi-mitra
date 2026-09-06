@@ -17,7 +17,7 @@ import { useAccessibility } from './context/AccessibilityContext';
 
 export function App() {
   const { user, isAuthenticated, logout, checkAuth } = useAuthStore();
-  const { highContrast: accessibilityHighContrast, largeFont } = useAccessibility();
+  const { isDarkMode, largeFont } = useAccessibility();
 
   const [showSplash, setShowSplash] = useState(true);
   const [showProfile, setShowProfile] = useState(false);
@@ -45,7 +45,7 @@ export function App() {
 
   return (
     <div className={`min-h-screen flex flex-col transition-colors duration-200 ${
-      accessibilityHighContrast ? 'high-contrast' : 'bg-soil-50 text-slate-900'
+      isDarkMode ? 'dark-mode bg-slate-900 text-slate-50' : 'bg-soil-50 text-slate-900'
     } ${largeFont ? 'large-text' : ''}`}>
       
       {/* Offline Status Warning Bar */}

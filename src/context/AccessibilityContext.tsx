@@ -1,20 +1,23 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 
 export interface AccessibilityContextType {
+  isDarkMode: boolean;
+  setIsDarkMode: (value: boolean | ((prev: boolean) => boolean)) => void;
+  toggleDarkMode: () => void;
   highContrast: boolean;
   setHighContrast: (value: boolean | ((prev: boolean) => boolean)) => void;
+  toggleHighContrast: () => void;
   largeFont: boolean;
   setLargeFont: (value: boolean | ((prev: boolean) => boolean)) => void;
-  toggleHighContrast: () => void;
   toggleLargeFont: () => void;
 }
 
 const AccessibilityContext = createContext<AccessibilityContextType | undefined>(undefined);
 
 export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [highContrast, setHighContrast] = useState<boolean>(() => {
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('highContrast') === 'true';
+      return localStorage.getItem('darkMode') === 'true' || localStorage.getItem('highContrast') === 'true';
     } catch {
       return false;
     }
@@ -28,22 +31,24 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
     }
   });
 
-  const toggleHighContrast = () => setHighContrast((prev) => !prev);
+  const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
   const toggleLargeFont = () => setLargeFont((prev) => !prev);
 
   useEffect(() => {
     const root = document.documentElement; // Targets the <html> element
     
-    if (highContrast) {
-      root.classList.add('high-contrast-mode');
-      root.classList.add('high-contrast');
+    if (isDarkMode) {
+      root.classList.add('dark-mode');
+      root.classList.add('dark');
       try {
+        localStorage.setItem('darkMode', 'true');
         localStorage.setItem('highContrast', 'true');
       } catch {}
     } else {
-      root.classList.remove('high-contrast-mode');
-      root.classList.remove('high-contrast');
+      root.classList.remove('dark-mode');
+      root.classList.remove('dark');
       try {
+        localStorage.setItem('darkMode', 'false');
         localStorage.setItem('highContrast', 'false');
       } catch {}
     }
@@ -61,16 +66,19 @@ export const AccessibilityProvider: React.FC<{ children: ReactNode }> = ({ child
         localStorage.setItem('largeFont', 'false');
       } catch {}
     }
-  }, [highContrast, largeFont]);
+  }, [isDarkMode, largeFont]);
 
   return (
     <AccessibilityContext.Provider
       value={{
-        highContrast,
-        setHighContrast,
+        isDarkMode,
+        setIsDarkMode,
+        toggleDarkMode,
+        highContrast: isDarkMode,
+        setHighContrast: setIsDarkMode,
+        toggleHighContrast: toggleDarkMode,
         largeFont,
         setLargeFont,
-        toggleHighContrast,
         toggleLargeFont
       }}
     >

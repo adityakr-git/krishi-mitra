@@ -13,7 +13,8 @@ import {
   Landmark, 
   CheckCircle2, 
   CreditCard,
-  Camera 
+  Camera,
+  Moon 
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useAccessibility } from '../../context/AccessibilityContext';
@@ -28,8 +29,8 @@ interface ProfileDrawerProps {
 export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({ isOpen, onClose, onLogout }) => {
   const { user } = useAuthStore();
   const { 
-    highContrast: accessibilityHighContrast, 
-    toggleHighContrast, 
+    isDarkMode, 
+    toggleDarkMode, 
     largeFont, 
     toggleLargeFont 
   } = useAccessibility();
@@ -182,17 +183,17 @@ export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({ isOpen, onClose, o
               </span>
 
               <button
-                onClick={toggleHighContrast}
+                onClick={toggleDarkMode}
                 className="w-full flex items-center justify-between p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium transition-colors"
               >
                 <span className="flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-slate-500" />
-                  <span>High Contrast Mode</span>
+                  <Moon className="w-4 h-4 text-slate-500" />
+                  <span>Dark Mode (डार्क मोड)</span>
                 </span>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  accessibilityHighContrast ? 'bg-forest text-white' : 'bg-slate-100 text-slate-500'
+                  isDarkMode ? 'bg-forest text-white' : 'bg-slate-100 text-slate-500'
                 }`}>
-                  {accessibilityHighContrast ? 'ON' : 'OFF'}
+                  {isDarkMode ? 'ON' : 'OFF'}
                 </span>
               </button>
 

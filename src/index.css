@@ -9,61 +9,81 @@
   color-scheme: light;
 }
 
-/* Accessibility: High Contrast Mode */
-.high-contrast-mode {
-  filter: contrast(1.5) saturate(1.2); /* Instantly makes everything pop */
+/* Premium Dark Mode Implementation */
+html.dark-mode, 
+.dark-mode body,
+body.dark-mode {
+  background-color: #0f172a !important; /* Tailwind slate-900 */
+  color: #f8fafc !important; /* Tailwind slate-50 */
 }
 
-.high-contrast-mode body {
-  background-color: #000000 !important;
-  color: #ffffff !important;
+/* Make all white cards beautifully dark */
+.dark-mode .bg-white,
+.dark-mode .bg-soil-50,
+.dark-mode .bg-soil-100 {
+  background-color: #1e293b !important; /* Tailwind slate-800 */
+  border-color: #334155 !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
 }
 
-.high-contrast-mode .bg-white {
-  background-color: #111111 !important; /* Darken white cards */
-  border: 1px solid #444444 !important;
+/* Fix text colors inside cards */
+.dark-mode .text-gray-900, 
+.dark-mode .text-gray-800,
+.dark-mode .text-slate-900,
+.dark-mode .text-slate-800 {
+  color: #f8fafc !important;
 }
 
-.high-contrast-mode .bg-soil-50,
-.high-contrast-mode .bg-soil-100 {
-  background-color: #1a1a1a !important;
-  border-color: #444444 !important;
-  color: #ffffff !important;
+.dark-mode .text-gray-700, 
+.dark-mode .text-gray-600, 
+.dark-mode .text-gray-500,
+.dark-mode .text-slate-700,
+.dark-mode .text-slate-600,
+.dark-mode .text-slate-500 {
+  color: #cbd5e1 !important; /* Tailwind slate-300 */
 }
 
-.high-contrast-mode .text-slate-500, 
-.high-contrast-mode .text-slate-600,
-.high-contrast-mode .text-slate-700,
-.high-contrast-mode .text-slate-800,
-.high-contrast-mode .text-slate-900,
-.high-contrast-mode text-gray-500, 
-.high-contrast-mode text-gray-400 {
-  color: #cccccc !important; /* Make light gray text readable */
+.dark-mode .text-slate-400,
+.dark-mode .text-gray-400 {
+  color: #94a3b8 !important;
 }
 
-.high-contrast-mode button {
-  border-color: #ffffff !important;
+/* Fix Bottom Navigation and Top Header */
+.dark-mode header,
+.dark-mode nav,
+.dark-mode .bottom-nav-container,
+.dark-mode [class*="fixed bottom-0"] > div {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
 }
 
-/* Backward compatibility for .high-contrast */
-.high-contrast {
-  --tw-bg-opacity: 1;
-  background-color: #000000 !important;
-  color: #ffffff !important;
+/* Maintain Green brand colors (Krishi Mitra Theme) */
+.dark-mode .text-green-600,
+.dark-mode .text-forest {
+  color: #4ade80 !important; /* Lighter green for dark backgrounds */
 }
 
-.high-contrast .bg-white,
-.high-contrast .bg-soil-50,
-.high-contrast .bg-soil-100 {
-  background-color: #121212 !important;
-  border-color: #555555 !important;
-  color: #ffffff !important;
+.dark-mode .bg-green-50,
+.dark-mode .bg-green-100,
+.dark-mode .bg-forest-pale {
+  background-color: rgba(22, 101, 52, 0.3) !important; /* Translucent dark green */
+  border: 1px solid #14532d !important;
+  color: #4ade80 !important;
 }
 
-.high-contrast .text-slate-500,
-.high-contrast .text-slate-600,
-.high-contrast .text-slate-700 {
-  color: #e2e8f0 !important;
+/* Inputs, selects, and modals */
+.dark-mode input,
+.dark-mode select,
+.dark-mode textarea {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+.dark-mode table thead {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
 }
 
 /* Accessibility: Large Font Mode */

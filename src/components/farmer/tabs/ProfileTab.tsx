@@ -12,7 +12,8 @@ import {
   CheckCircle2,
   FileCheck,
   Camera,
-  PhoneCall
+  PhoneCall,
+  Moon
 } from 'lucide-react';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useProcurementStore } from '../../../store/useProcurementStore';
@@ -23,9 +24,9 @@ import { useAccessibility } from '../../../context/AccessibilityContext';
 export const ProfileTab: React.FC = () => {
   const { user, logout } = useAuthStore();
   const { 
-    highContrast, 
+    isDarkMode, 
     largeFont, 
-    toggleHighContrast, 
+    toggleDarkMode, 
     toggleLargeFont 
   } = useAccessibility();
 
@@ -244,21 +245,21 @@ export const ProfileTab: React.FC = () => {
         <div className="space-y-2">
           <div className="flex items-center justify-between p-2.5 bg-soil-50 rounded-2xl border border-slate-100 text-xs">
             <div className="flex items-center gap-2">
-              <Eye className="w-4 h-4 text-slate-600" />
+              <Moon className="w-4 h-4 text-slate-600" />
               <span className="font-semibold text-slate-800">
-                {language === 'hi' ? 'उच्च कंट्रास्ट (High Contrast)' : 'High Contrast'}
+                {language === 'hi' ? 'डार्क मोड (Dark Mode)' : 'Dark Mode'}
               </span>
             </div>
             <button
               type="button"
-              onClick={toggleHighContrast}
+              onClick={toggleDarkMode}
               className={`w-11 h-6 rounded-full transition-colors relative ${
-                highContrast ? 'bg-forest' : 'bg-slate-300'
+                isDarkMode ? 'bg-forest' : 'bg-slate-300'
               }`}
             >
               <div
                 className={`w-4 h-4 rounded-full bg-white transition-transform transform ${
-                  highContrast ? 'translate-x-6' : 'translate-x-1'
+                  isDarkMode ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>
