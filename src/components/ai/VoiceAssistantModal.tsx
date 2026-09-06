@@ -93,88 +93,57 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   }, [messages, isOpen, isLoading]);
 
   /**
-   * 2. Fix Text-to-Speech (Ensure Hindi Voice Loads)
-   * Browsers load voices asynchronously. If Hindi voice is not immediately ready, wait for voiceschanged.
+   * 1. Unlock the Speech Engine on First Interaction
+   * Plays a silent utterance synchronously during user gesture to bypass browser autoplay restrictions
    */
-  const speakText = (text: string, langCode: string = currentLang) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-
-    try {
-      window.speechSynthesis.cancel(); // Stop anything currently playing
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-
-      // Clean markdown, symbols, and convert currency to readable words
-      const cleanText = text
-        .replace(/[*_~`#]/g, '')
-        .replace(/-/g, ' ')
-        .replace(/₹/g, langCode === 'en' ? 'Rupees ' : 'रुपये ');
-
-      const utterance = new SpeechSynthesisUtterance(cleanText);
-      const targetLang = langCode === 'en' ? 'en-IN' : 'hi-IN';
-      utterance.lang = targetLang; // Force Hindi language code if not English
-      utterance.rate = 0.9;
-
-      // Function to set voice once they are loaded
-      const setVoice = () => {
-        const voices = window.speechSynthesis.getVoices();
-        let matchedVoice: SpeechSynthesisVoice | undefined;
-
-        if (targetLang === 'en-IN') {
-          matchedVoice = voices.find((v) => 
-            v.lang === 'en-IN' || 
-            v.lang.replace('_', '-').includes('en-IN') ||
-            v.name.toLowerCase().includes('india') ||
-            v.name.toLowerCase().includes('google english')
-          ) || voices.find((v) => v.lang.startsWith('en'));
-        } else {
-          // Try to find Google Hindi voice, or any voice that supports Hindi Devanagari
-          matchedVoice = voices.find((v) => 
-            v.lang === 'hi-IN' || 
-            v.lang.replace('_', '-').includes('hi') ||
-            v.name.toLowerCase().includes('hindi') ||
-            v.name.toLowerCase().includes('हिन्दी') ||
-            v.name.toLowerCase().includes('google hindi')
-          );
-        }
-
-        if (matchedVoice) {
-          utterance.voice = matchedVoice;
-          console.log("TTS Using Voice:", matchedVoice.name, matchedVoice.lang);
-        } else {
-          console.warn("No specific voice found for", targetLang, "using system voice");
-        }
-
-        window.speechSynthesis.speak(utterance);
-      };
-
-      const currentVoices = window.speechSynthesis.getVoices();
-      const hasTargetVoice = targetLang === 'en-IN' 
-        ? currentVoices.some(v => v.lang.includes('en'))
-        : currentVoices.some(v => v.lang === 'hi-IN' || v.lang.includes('hi') || v.name.toLowerCase().includes('hindi'));
-
-      // Chrome needs voiceschanged listener if voices aren't loaded or Hindi isn't in initial list
-      if (currentVoices.length === 0 || !hasTargetVoice) {
-        window.speechSynthesis.addEventListener('voiceschanged', setVoice, { once: true });
-        // Safety timeout in case voiceschanged already fired or doesn't fire
-        setTimeout(() => {
-          if (!window.speechSynthesis.speaking) {
-            setVoice();
-          }
-        }, 300);
-      } else {
-        setVoice();
-      }
-    } catch (err) {
-      console.error("Speech synthesis error:", err);
+  const unlockSpeech = () => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const silentUtterance = new SpeechSynthesisUtterance('');
+      silentUtterance.volume = 0; // Silent
+      window.speechSynthesis.speak(silentUtterance);
     }
   };
 
   /**
-   * 1. Fix Speech-to-Text (Robust Initialization & Permissions)
+   * 2. Simplified speakText Function
+   * Minimal, robust version avoiding hanging listeners and letting the browser select native Hindi voice
+   */
+  const speakText = (text: string, langCode: string = currentLang) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      console.error("Speech Synthesis not supported");
+      return;
+    }
+
+    // Stop any ongoing speech
+    window.speechSynthesis.cancel();
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+
+    // Clean markdown, symbols, and format currency
+    const cleanText = text
+      .replace(/[*_~`#]/g, '')
+      .replace(/-/g, ' ')
+      .replace(/₹/g, langCode === 'en' ? 'Rupees ' : 'रुपये ');
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = langCode === 'en' ? 'en-IN' : 'hi-IN'; // Force Hindi if not English
+    utterance.rate = 0.9;     // Normal speed
+    utterance.volume = 1;     // Full volume
+
+    // Log errors if it fails to speak
+    utterance.onerror = (e) => console.error("TTS Error:", e);
+
+    window.speechSynthesis.speak(utterance);
+  };
+
+  /**
+   * Speech-to-Text (Microphone Input)
    */
   const startListening = () => {
+    // Unlock speech engine immediately on user gesture
+    unlockSpeech();
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert("माइक सपोर्ट नहीं है। कृपया Google Chrome का उपयोग करें।");
@@ -283,6 +252,9 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
    */
   const handleSendMessage = async (query: string) => {
     if (!query.trim() || isLoading) return;
+
+    // Unlock speech engine immediately on user interaction before fetch call
+    unlockSpeech();
 
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const userMsg: Message = { sender: 'user', text: query, time: timeNow };
@@ -536,6 +508,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                   key={i}
                   type="button"
                   onClick={() => {
+                    unlockSpeech();
                     handleSendMessage(q);
                   }}
                   className="whitespace-nowrap text-xs font-semibold bg-soil-100 hover:bg-forest-pale hover:text-forest text-slate-700 px-3 py-1.5 rounded-full transition-colors border border-slate-200 shrink-0 active:scale-95"
@@ -555,7 +528,10 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                 )}
                 <button
                   type="button"
-                  onClick={toggleListening}
+                  onClick={() => {
+                    unlockSpeech();
+                    toggleListening();
+                  }}
                   className={`relative p-3.5 rounded-full transition-all flex items-center justify-center shadow-lg active:scale-95 ${
                     isListening
                       ? 'bg-red-600 text-white ring-4 ring-red-300 animate-pulse shadow-red-500/50'
@@ -578,6 +554,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && inputText.trim()) {
+                    unlockSpeech();
                     handleSendMessage(inputText);
                     setInputText('');
                   }
@@ -594,6 +571,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                 type="button"
                 onClick={() => {
                   if (inputText.trim()) {
+                    unlockSpeech();
                     handleSendMessage(inputText);
                     setInputText('');
                   }
