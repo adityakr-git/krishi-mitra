@@ -16,7 +16,7 @@ import {
   Camera 
 } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
-import { useProcurementStore } from '../../store/useProcurementStore';
+import { useAccessibility } from '../../context/AccessibilityContext';
 import { setGlobalMute, getGlobalMute } from '../../utils/soundEffects';
 
 interface ProfileDrawerProps {
@@ -28,11 +28,11 @@ interface ProfileDrawerProps {
 export const ProfileDrawer: React.FC<ProfileDrawerProps> = ({ isOpen, onClose, onLogout }) => {
   const { user } = useAuthStore();
   const { 
-    accessibilityHighContrast, 
+    highContrast: accessibilityHighContrast, 
     toggleHighContrast, 
     largeFont, 
     toggleLargeFont 
-  } = useProcurementStore();
+  } = useAccessibility();
 
   const [muted, setMuted] = useState(getGlobalMute());
   const [profilePic, setProfilePic] = useState<string | null>(null);

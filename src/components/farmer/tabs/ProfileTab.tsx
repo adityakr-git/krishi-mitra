@@ -18,15 +18,16 @@ import { useAuthStore } from '../../../store/useAuthStore';
 import { useProcurementStore } from '../../../store/useProcurementStore';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { LanguageSwitcher } from '../../common/LanguageSwitcher';
+import { useAccessibility } from '../../../context/AccessibilityContext';
 
 export const ProfileTab: React.FC = () => {
   const { user, logout } = useAuthStore();
   const { 
-    accessibilityHighContrast, 
+    highContrast, 
     largeFont, 
     toggleHighContrast, 
     toggleLargeFont 
-  } = useProcurementStore();
+  } = useAccessibility();
 
   const { t, language } = useTranslation();
 
@@ -252,12 +253,12 @@ export const ProfileTab: React.FC = () => {
               type="button"
               onClick={toggleHighContrast}
               className={`w-11 h-6 rounded-full transition-colors relative ${
-                accessibilityHighContrast ? 'bg-forest' : 'bg-slate-300'
+                highContrast ? 'bg-forest' : 'bg-slate-300'
               }`}
             >
               <div
                 className={`w-4 h-4 rounded-full bg-white transition-transform transform ${
-                  accessibilityHighContrast ? 'translate-x-6' : 'translate-x-1'
+                  highContrast ? 'translate-x-6' : 'translate-x-1'
                 }`}
               />
             </button>

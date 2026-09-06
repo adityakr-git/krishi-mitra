@@ -13,10 +13,11 @@ import { OfficerDashboard } from './components/officer/OfficerDashboard';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { SplashScreen } from './components/splash/SplashScreen';
 import { UserProfile } from './services/authService';
+import { useAccessibility } from './context/AccessibilityContext';
 
 export function App() {
   const { user, isAuthenticated, logout, checkAuth } = useAuthStore();
-  const { accessibilityHighContrast, largeFont } = useProcurementStore();
+  const { highContrast: accessibilityHighContrast, largeFont } = useAccessibility();
 
   const [showSplash, setShowSplash] = useState(true);
   const [showProfile, setShowProfile] = useState(false);

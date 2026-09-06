@@ -9,7 +9,43 @@
   color-scheme: light;
 }
 
-/* Custom Accessibility High Contrast Mode */
+/* Accessibility: High Contrast Mode */
+.high-contrast-mode {
+  filter: contrast(1.5) saturate(1.2); /* Instantly makes everything pop */
+}
+
+.high-contrast-mode body {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+.high-contrast-mode .bg-white {
+  background-color: #111111 !important; /* Darken white cards */
+  border: 1px solid #444444 !important;
+}
+
+.high-contrast-mode .bg-soil-50,
+.high-contrast-mode .bg-soil-100 {
+  background-color: #1a1a1a !important;
+  border-color: #444444 !important;
+  color: #ffffff !important;
+}
+
+.high-contrast-mode .text-slate-500, 
+.high-contrast-mode .text-slate-600,
+.high-contrast-mode .text-slate-700,
+.high-contrast-mode .text-slate-800,
+.high-contrast-mode .text-slate-900,
+.high-contrast-mode text-gray-500, 
+.high-contrast-mode text-gray-400 {
+  color: #cccccc !important; /* Make light gray text readable */
+}
+
+.high-contrast-mode button {
+  border-color: #ffffff !important;
+}
+
+/* Backward compatibility for .high-contrast */
 .high-contrast {
   --tw-bg-opacity: 1;
   background-color: #000000 !important;
@@ -30,13 +66,10 @@
   color: #e2e8f0 !important;
 }
 
-.high-contrast button {
-  border: 2px solid #ffffff !important;
-}
-
-/* Accessibility Large Typography Mode */
+/* Accessibility: Large Font Mode */
+.large-font-mode,
 .large-text {
-  font-size: 115% !important;
+  font-size: 115% !important; /* Increases root font size, scaling everything proportionally */
 }
 
 /* Custom sleek scrollbar */
