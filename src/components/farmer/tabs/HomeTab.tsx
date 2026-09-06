@@ -39,10 +39,11 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   const [showFullPassModal, setShowFullPassModal] = useState(false);
 
   const hasActiveToken = Boolean(
-    displayToken && 
-    displayToken.id && 
-    displayToken.status !== 'COMPLETED' && 
-    displayToken.status !== 'CANCELLED'
+    activeBooking && 
+    activeBooking.id && 
+    activeBooking.status !== 'PAID' && 
+    activeBooking.status !== 'COMPLETED' &&
+    activeBooking.status !== 'NO_BOOKING'
   );
 
   const handleScrollToPass = () => {
@@ -120,10 +121,10 @@ export const HomeTab: React.FC<HomeTabProps> = ({
 
       {/* 
         CONDITIONAL RENDERING OF DIGITAL PASS & 5-STEP TRACKER
-        Only render pass and tracker if an active booking exists.
-        Otherwise, render clean Empty State to generate new token.
+        Only render pass and tracker if an active booking is returned from the API.
+        Otherwise, render clean Empty State / Slot Booking Form.
       */}
-      {!activeBooking ? (
+      {!hasActiveToken || !activeBooking ? (
         <div className="bg-white rounded-3xl p-6 sm:p-7 shadow-xs border border-slate-200 text-center space-y-4 animate-fade-in">
           <div className="w-16 h-16 bg-forest-pale text-forest rounded-3xl mx-auto flex items-center justify-center shadow-xs">
             <Ticket className="w-8 h-8 text-forest" />
@@ -164,15 +165,15 @@ export const HomeTab: React.FC<HomeTabProps> = ({
                   {t('digital_pass')}
                 </span>
                 <span className="text-3xl font-black tracking-tight text-white block leading-tight">
-                  #{activeBooking.id || displayToken.id}
+                  #{activeBooking.tokenNumber || activeBooking.id}
                 </span>
                 <span className="text-xs font-semibold text-emerald-200 flex items-center gap-1 mt-0.5">
                   <MapPin className="w-3.5 h-3.5 text-forest-accent" />
-                  {activeBooking.mandiName || displayToken.mandiName}
+                  {activeBooking.mandiName || 'Badshahpur APMC Mandi'}
                 </span>
               </div>
 
-              {/* Scannable Real QR Code Container */}
+              {/* Scannable Real QR Code Container (Encodes actual booking.id) */}
               <button
                 type="button"
                 onClick={() => setShowFullPassModal(true)}
@@ -181,7 +182,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
               >
                 <div className="w-16 h-16 bg-white flex items-center justify-center p-0.5">
                   <QRCode 
-                    value={activeBooking.id || displayToken.id} 
+                    value={activeBooking.id} 
                     size={58} 
                     level="H" 
                   />
@@ -238,10 +239,11 @@ export const HomeTab: React.FC<HomeTabProps> = ({
 
           {/* Dynamic 5-Step Procurement Progress Tracker */}
           <ProcurementTracker 
-            bookingId={activeBooking?.id || displayToken?.id}
-            status={activeBooking?.status || displayToken?.status}
-            farmerId={activeBooking?.farmerId || displayToken?.farmerId}
-            tokenId={activeBooking?.id || displayToken?.id}
+            bookingId={activeBooking?.id}
+            tokenNumber={activeBooking?.tokenNumber || activeBooking?.id}
+            status={activeBooking?.status}
+            farmerId={activeBooking?.farmerId}
+            tokenId={activeBooking?.tokenNumber || activeBooking?.id}
           />
         </div>
       )}

@@ -63,8 +63,8 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, onClose }) 
 
       if (data && data.success) {
         playSuccessChime();
-        setScanResult(cleanId);
-        setScanMessage(data.message || `किसान #${cleanId} का गेट प्रवेश सफल! स्थिति: प्रतीक्षारत (Waiting)`);
+        const tokenLabel = data.booking?.tokenNumber || cleanId;
+        setScanMessage(data.message || `किसान #${tokenLabel} का गेट प्रवेश सफल! स्थिति: प्रतीक्षारत (Waiting)`);
 
         markTokenArrived(cleanId);
         allTokens.forEach(t => {

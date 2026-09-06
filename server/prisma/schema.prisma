@@ -20,6 +20,7 @@ model User {
 
 model Booking {
   id          String   @id @default(uuid())
+  tokenNumber String   @default("A-000")
   farmerId    String
   farmerName  String?
   crop        String

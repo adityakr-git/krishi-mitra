@@ -291,7 +291,7 @@ export const OfficerDashboard: React.FC = () => {
         const storeMatch = allTokens.find(t => t.id.toLowerCase() === b.id.toLowerCase());
         return {
           id: b.id,
-          tokenNumber: storeMatch?.tokenNumber || (idx + 1),
+          tokenNumber: b.tokenNumber || storeMatch?.tokenNumber || (idx + 1),
           farmerId: b.farmerId || storeMatch?.farmerId || 'HR-FARMER',
           farmerName: b.farmerName || storeMatch?.farmerName || 'Kisan',
           phone: storeMatch?.phone || '98765 00000',
@@ -316,9 +316,10 @@ export const OfficerDashboard: React.FC = () => {
 
   const filteredTokens = displayTokens.filter((token) => {
     const matchesSearch = 
-      token.farmerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      token.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      token.crop.toLowerCase().includes(searchQuery.toLowerCase());
+      (token.farmerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (token.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (String(token.tokenNumber || '')).toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (token.crop || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     if (!matchesSearch) return false;
 
@@ -787,9 +788,16 @@ export const OfficerDashboard: React.FC = () => {
                     }`}
                   >
                     <td className="py-3 px-3">
-                      <span className="font-extrabold text-slate-900 text-sm">
-                        #{token.id}
-                      </span>
+                      <div>
+                        <span className="font-extrabold text-slate-900 text-sm block">
+                          #{token.tokenNumber || token.id}
+                        </span>
+                        {token.id && token.tokenNumber && token.id !== token.tokenNumber && (
+                          <span className="text-[9px] text-slate-400 font-mono block">
+                            ID: {token.id.length > 10 ? token.id.substring(0, 8) + '...' : token.id}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="py-3 px-3">

@@ -9,6 +9,7 @@ interface ProcurementTrackerProps {
   farmerId?: string;
   tokenId?: string;
   bookingId?: string;
+  tokenNumber?: string;
   status?: string;
   className?: string;
   compact?: boolean;
@@ -35,6 +36,7 @@ export const ProcurementTracker: React.FC<ProcurementTrackerProps> = ({
   farmerId,
   tokenId,
   bookingId,
+  tokenNumber,
   status,
   className = '',
   compact = false
@@ -42,7 +44,7 @@ export const ProcurementTracker: React.FC<ProcurementTrackerProps> = ({
   const { language } = useTranslation();
   const { activeToken } = useProcurementStore();
   
-  const effectiveId = bookingId || tokenId || activeToken?.id || farmerId || 'A-184';
+  const effectiveId = bookingId || tokenNumber || tokenId || activeToken?.id || farmerId || 'A-184';
   const initialStatus = status || activeToken?.status || 'BOOKED';
 
   const [currentStep, setCurrentStep] = useState<number>(() => {
@@ -132,11 +134,13 @@ export const ProcurementTracker: React.FC<ProcurementTrackerProps> = ({
     };
   }, [effectiveId, farmerId, currentStep]);
 
-  // Human-friendly token ID formatting (e.g. A-184 or short ID)
-  const displayTokenId = bookingId || tokenId || (effectiveId && !effectiveId.startsWith('HR-') && effectiveId.length < 20 ? effectiveId : 'A-184');
-  const formattedId = displayTokenId.startsWith('KM-') || displayTokenId.length > 8 
-    ? displayTokenId.substring(0, 6).toUpperCase() 
-    : displayTokenId.toUpperCase();
+  // Human-friendly token ID formatting (e.g. A-184)
+  const displayTokenId = tokenNumber || (bookingId && bookingId.startsWith('A-') ? bookingId : null) || tokenId || (effectiveId && !effectiveId.startsWith('HR-') && effectiveId.length < 20 ? effectiveId : 'A-184');
+  const formattedId = displayTokenId.startsWith('#') ? displayTokenId.substring(1) : (
+    displayTokenId.startsWith('KM-') || displayTokenId.length > 8 
+      ? displayTokenId.substring(0, 6).toUpperCase() 
+      : displayTokenId.toUpperCase()
+  );
 
   return (
     <div className={`bg-white rounded-3xl p-4 sm:p-5 shadow-xs border border-slate-200 space-y-4 ${className}`}>

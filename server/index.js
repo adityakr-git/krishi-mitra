@@ -218,34 +218,45 @@ app.post('/api/officer/scan-qr', async (req, res) => {
   }
 });
 
-// 6. Create / Book Slot API
-app.post('/api/bookings', async (req, res) => {
+// 6. Create / Book Slot API (Generates Token Number e.g. A-184)
+const handleBookSlot = async (req, res) => {
   try {
     const { id, farmerId, farmerName, crop, quantity, mandiId, mandiName, timeSlot } = req.body;
+    
+    // Generate random token number (e.g., A-184)
+    const randomDigits = Math.floor(100 + Math.random() * 900);
+    const tokenNumber = req.body.tokenNumber || `A-${randomDigits}`;
+
     const booking = await prisma.booking.create({
       data: {
         id: id || undefined,
+        tokenNumber,
         farmerId: farmerId || 'HR-GUR-2024-8841',
         farmerName: farmerName || 'Ramesh Kumar',
         crop: crop || 'Wheat (Kanak)',
         quantity: parseFloat(quantity) || 40.0,
-        mandiId,
-        mandiName,
-        timeSlot,
+        mandiId: mandiId || null,
+        mandiName: mandiName || 'Badshahpur APMC Mandi',
+        timeSlot: timeSlot || '11:00 AM - 12:00 PM',
         status: 'BOOKED'
       }
     });
 
     io.emit('new_booking_created', booking);
-    res.json({ success: true, booking });
+    io.emit('booking_status_updated', booking);
+
+    res.json({ success: true, booking, tokenNumber: booking.tokenNumber });
   } catch (error) {
     console.error('Create booking error:', error);
     res.status(500).json({ success: false, error: "बुकिंग दर्ज करने में त्रुटि।" });
   }
-});
+};
 
-// 7. Get All Bookings & Officer Bookings
-app.get('/api/officer/bookings', async (req, res) => {
+app.post('/api/farmer/book-slot', handleBookSlot);
+app.post('/api/bookings', handleBookSlot);
+
+// 7. Get All Bookings & Officer Bookings (Ordered by createdAt desc)
+const handleGetBookings = async (req, res) => {
   try {
     const bookings = await prisma.booking.findMany({
       orderBy: { createdAt: 'desc' }
@@ -255,19 +266,10 @@ app.get('/api/officer/bookings', async (req, res) => {
     console.error('Fetch officer bookings error:', error);
     res.status(500).json({ success: false, error: "Failed to fetch bookings" });
   }
-});
+};
 
-app.get('/api/bookings', async (req, res) => {
-  try {
-    const bookings = await prisma.booking.findMany({
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json({ success: true, bookings });
-  } catch (error) {
-    console.error('Fetch bookings error:', error);
-    res.status(500).json({ success: false, error: "Failed to fetch bookings" });
-  }
-});
+app.get('/api/officer/bookings', handleGetBookings);
+app.get('/api/bookings', handleGetBookings);
 
 // 8. Gemini AI Assistant Chat API (Context-Aware Mandi & Weather Data)
 app.post('/api/ai/chat', async (req, res) => {
@@ -357,71 +359,100 @@ app.post('/api/ai/chat', async (req, res) => {
   }
 });
 
-// 9. Fetch Dynamic Booking Status for 5-Step Tracker
-app.get('/api/farmer/booking-status/:farmerId', async (req, res) => {
+// 9. Fetch Dynamic Booking Status for Farmer (my-booking / booking-status)
+const handleFarmerBooking = async (req, res) => {
   try {
     const { farmerId } = req.params;
+    const cleanId = String(farmerId).trim();
 
-    // Fetch the most recent active booking for this farmer or matching token id
+    // Fetch the most recent active booking for this farmerId or matching id/tokenNumber
     const booking = await prisma.booking.findFirst({
       where: {
         OR: [
-          { farmerId: farmerId },
-          { id: farmerId },
-          { id: { contains: farmerId, mode: 'insensitive' } }
+          { farmerId: cleanId },
+          { id: cleanId },
+          { tokenNumber: cleanId },
+          { id: { contains: cleanId, mode: 'insensitive' } }
         ]
       },
       orderBy: { createdAt: 'desc' }
     });
 
     if (!booking) {
-      return res.json({ success: true, status: 'NO_BOOKING' });
+      return res.json({ success: true, booking: null, status: 'NO_BOOKING' });
     }
 
     res.json({
       success: true,
+      booking,
       status: booking.status,
+      tokenNumber: booking.tokenNumber,
       bookingId: booking.id,
-      booking: booking,
       crop: booking.crop,
       quantity: booking.quantity
     });
   } catch (error) {
-    console.error("Fetch booking status error:", error);
-    res.status(500).json({ success: false, error: "Failed to fetch status" });
+    console.error("Fetch farmer booking error:", error);
+    res.status(500).json({ success: false, error: "Failed to fetch booking" });
   }
-});
+};
+
+app.get('/api/farmer/my-booking/:farmerId', handleFarmerBooking);
+app.get('/api/farmer/booking-status/:farmerId', handleFarmerBooking);
 
 // 10. Universal Status Update API (Mandi Officer & Admin Yard Flow)
 // Status Flow: BOOKED -> ARRIVED -> QUALITY_CHECK -> WEIGHED -> PAID
 const handleStatusUpdate = async (req, res) => {
   try {
-    const { bookingId, newStatus, status } = req.body;
-    const targetStatus = newStatus || status;
+    const bookingId = req.body.bookingId || req.body.id;
+    const newStatus = req.body.newStatus || req.body.status;
 
-    if (!bookingId || !targetStatus) {
+    if (!bookingId || !newStatus) {
       return res.status(400).json({ success: false, error: "bookingId and newStatus are required." });
     }
 
     const cleanId = String(bookingId).trim();
-    const updated = await prisma.booking.upsert({
-      where: { id: cleanId },
-      update: { status: targetStatus },
-      create: {
-        id: cleanId,
-        farmerId: 'HR-GUR-2024-8841',
-        farmerName: 'Ramesh Kumar',
-        crop: 'Wheat (Kanak)',
-        quantity: 40.0,
-        status: targetStatus
+
+    // Find booking by id OR tokenNumber
+    let booking = await prisma.booking.findFirst({
+      where: {
+        OR: [
+          { id: cleanId },
+          { tokenNumber: cleanId }
+        ]
       }
     });
 
-    // Real-time broadcast to all connected farmers and officers
-    io.emit('booking_status_updated', updated);
-    io.emit('token_status_changed', { id: cleanId, status: targetStatus });
+    if (booking) {
+      booking = await prisma.booking.update({
+        where: { id: booking.id },
+        data: { status: newStatus }
+      });
+    } else {
+      // Upsert record if not found
+      const randomDigits = Math.floor(100 + Math.random() * 900);
+      const tokenNum = cleanId.startsWith('A-') ? cleanId : `A-${randomDigits}`;
+      booking = await prisma.booking.upsert({
+        where: { id: cleanId },
+        update: { status: newStatus },
+        create: {
+          id: cleanId,
+          tokenNumber: tokenNum,
+          farmerId: 'HR-GUR-2024-8841',
+          farmerName: 'Ramesh Kumar',
+          crop: 'Wheat (Kanak)',
+          quantity: 40.0,
+          status: newStatus
+        }
+      });
+    }
 
-    res.json({ success: true, booking: updated });
+    // Real-time broadcast to all connected farmers and officers
+    io.emit('booking_status_updated', booking);
+    io.emit('token_status_changed', { id: booking.id, tokenNumber: booking.tokenNumber, status: newStatus });
+    io.emit('gate_entry_scanned', { bookingId: booking.id, tokenNumber: booking.tokenNumber, status: newStatus });
+
+    res.json({ success: true, booking });
   } catch (error) {
     console.error("Update status error:", error);
     res.status(500).json({ success: false, error: "Failed to update status" });
