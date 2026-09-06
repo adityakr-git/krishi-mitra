@@ -93,50 +93,91 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
   }, [messages, isOpen, isLoading]);
 
   /**
-   * 2. Fix Text-to-Speech (AI Speaking Back)
+   * 2. Fix Text-to-Speech (Ensure Hindi Voice Loads)
+   * Browsers load voices asynchronously. If Hindi voice is not immediately ready, wait for voiceschanged.
    */
-  const speakText = (text: string, langCode: string) => {
+  const speakText = (text: string, langCode: string = currentLang) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
     try {
-      window.speechSynthesis.cancel(); // Stop any ongoing speech
+      window.speechSynthesis.cancel(); // Stop anything currently playing
       if (window.speechSynthesis.paused) {
         window.speechSynthesis.resume();
       }
 
-      // Sanitize text for clear rural audio pronunciation
+      // Clean markdown, symbols, and convert currency to readable words
       const cleanText = text
         .replace(/[*_~`#]/g, '')
         .replace(/-/g, ' ')
         .replace(/₹/g, langCode === 'en' ? 'Rupees ' : 'रुपये ');
 
       const utterance = new SpeechSynthesisUtterance(cleanText);
-      utterance.lang = langCode === 'en' ? 'en-IN' : 'hi-IN'; // Fallback to Hindi if not English
-      utterance.rate = 0.9; // Slower for farmer accessibility
+      const targetLang = langCode === 'en' ? 'en-IN' : 'hi-IN';
+      utterance.lang = targetLang; // Force Hindi language code if not English
+      utterance.rate = 0.9;
 
-      // Try to find a local voice matching the language
-      const voices = window.speechSynthesis.getVoices();
-      const targetVoice = voices.find((v) => 
-        v.lang.includes(utterance.lang) || 
-        v.lang.replace('_', '-').includes(utterance.lang) ||
-        (utterance.lang.startsWith('hi') && (v.lang.includes('hi') || v.name.toLowerCase().includes('hindi'))) ||
-        (utterance.lang.startsWith('en') && (v.lang.includes('en-IN') || v.name.toLowerCase().includes('india')))
-      );
-      if (targetVoice) utterance.voice = targetVoice;
+      // Function to set voice once they are loaded
+      const setVoice = () => {
+        const voices = window.speechSynthesis.getVoices();
+        let matchedVoice: SpeechSynthesisVoice | undefined;
 
-      window.speechSynthesis.speak(utterance);
+        if (targetLang === 'en-IN') {
+          matchedVoice = voices.find((v) => 
+            v.lang === 'en-IN' || 
+            v.lang.replace('_', '-').includes('en-IN') ||
+            v.name.toLowerCase().includes('india') ||
+            v.name.toLowerCase().includes('google english')
+          ) || voices.find((v) => v.lang.startsWith('en'));
+        } else {
+          // Try to find Google Hindi voice, or any voice that supports Hindi Devanagari
+          matchedVoice = voices.find((v) => 
+            v.lang === 'hi-IN' || 
+            v.lang.replace('_', '-').includes('hi') ||
+            v.name.toLowerCase().includes('hindi') ||
+            v.name.toLowerCase().includes('हिन्दी') ||
+            v.name.toLowerCase().includes('google hindi')
+          );
+        }
+
+        if (matchedVoice) {
+          utterance.voice = matchedVoice;
+          console.log("TTS Using Voice:", matchedVoice.name, matchedVoice.lang);
+        } else {
+          console.warn("No specific voice found for", targetLang, "using system voice");
+        }
+
+        window.speechSynthesis.speak(utterance);
+      };
+
+      const currentVoices = window.speechSynthesis.getVoices();
+      const hasTargetVoice = targetLang === 'en-IN' 
+        ? currentVoices.some(v => v.lang.includes('en'))
+        : currentVoices.some(v => v.lang === 'hi-IN' || v.lang.includes('hi') || v.name.toLowerCase().includes('hindi'));
+
+      // Chrome needs voiceschanged listener if voices aren't loaded or Hindi isn't in initial list
+      if (currentVoices.length === 0 || !hasTargetVoice) {
+        window.speechSynthesis.addEventListener('voiceschanged', setVoice, { once: true });
+        // Safety timeout in case voiceschanged already fired or doesn't fire
+        setTimeout(() => {
+          if (!window.speechSynthesis.speaking) {
+            setVoice();
+          }
+        }, 300);
+      } else {
+        setVoice();
+      }
     } catch (err) {
       console.error("Speech synthesis error:", err);
     }
   };
 
   /**
-   * 1. Fix Speech-to-Text (Microphone Input)
+   * 1. Fix Speech-to-Text (Robust Initialization & Permissions)
    */
   const startListening = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Your browser does not support voice input. Please use Chrome.");
+      alert("माइक सपोर्ट नहीं है। कृपया Google Chrome का उपयोग करें।");
       return;
     }
 
@@ -156,17 +197,20 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       const recognition = new SpeechRecognition();
       recognitionRef.current = recognition;
 
-      recognition.lang = currentLang === 'en' ? 'en-IN' : 'hi-IN'; // Fallback to Hindi if not English
+      // Force Hindi explicitly if not English
+      recognition.lang = currentLang === 'en' ? 'en-IN' : 'hi-IN';
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
 
       recognition.onstart = () => {
         setIsListening(true);
+        console.log("Mic started listening...");
       };
 
       recognition.onresult = (event: any) => {
         if (event.results && event.results[0] && event.results[0][0]) {
           const transcript = event.results[0][0].transcript;
+          console.log("Heard:", transcript);
           if (transcript && transcript.trim()) {
             setInputText(transcript);
             handleSendMessage(transcript); // Send to AI
@@ -175,7 +219,8 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       };
 
       recognition.onerror = (event: any) => {
-        console.error("Speech error:", event.error);
+        console.error("Speech Recognition Error:", event.error);
+        alert("माइक एरर: " + event.error);
         setIsListening(false);
       };
 
@@ -184,8 +229,8 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       };
 
       recognition.start();
-    } catch (err) {
-      console.error("Failed to start speech recognition:", err);
+    } catch (e) {
+      console.error("Could not start speech recognition", e);
       setIsListening(false);
     }
   };
