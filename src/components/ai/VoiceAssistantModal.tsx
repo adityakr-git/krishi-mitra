@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, X, Bot, User, Sparkles, Send, Volume2 } from 'lucide-react';
 import { useProcurementStore } from '../../store/useProcurementStore';
-import { useKrishiVoice } from '../../hooks/useKrishiVoice';
 import { useLanguage } from '../../context/LanguageContext';
 import { API_BASE_URL } from '../../utils/api';
 
@@ -46,6 +45,8 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
 
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+
   const [messages, setMessages] = useState<Message[]>(() => [
     {
       sender: 'bot',
@@ -53,6 +54,22 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
       time: 'Just now'
     }
   ]);
+
+  const { activeToken } = useProcurementStore();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // Pre-load available voices on component mount for Web Speech API stability
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          window.speechSynthesis.getVoices();
+        };
+      }
+    }
+  }, []);
 
   // Update initial bot greeting if user toggles language and no chat has happened yet
   useEffect(() => {
@@ -70,40 +87,135 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     });
   }, [currentLang]);
 
-  const { activeToken } = useProcurementStore();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const speechDebounceRef = useRef<any>(null);
-
   // Auto scroll messages to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isOpen, isLoading]);
 
-  // Robust Krishi Voice Hook with active regional language
-  const { isListening, startListening, stopListening, speak } = useKrishiVoice((transcript) => {
-    // Stream real-time text directly into the input box
-    setInputText(transcript);
+  /**
+   * 2. Fix Text-to-Speech (AI Speaking Back)
+   */
+  const speakText = (text: string, langCode: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
 
-    // Auto-send query after 1.5 seconds of silence for seamless hands-free farmer experience
-    if (speechDebounceRef.current) {
-      clearTimeout(speechDebounceRef.current);
-    }
-    speechDebounceRef.current = setTimeout(() => {
-      if (transcript.trim()) {
-        handleSendMessage(transcript);
-        setInputText('');
-        stopListening();
+    try {
+      window.speechSynthesis.cancel(); // Stop any ongoing speech
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
       }
-    }, 1500);
-  }, currentLang);
+
+      // Sanitize text for clear rural audio pronunciation
+      const cleanText = text
+        .replace(/[*_~`#]/g, '')
+        .replace(/-/g, ' ')
+        .replace(/₹/g, langCode === 'en' ? 'Rupees ' : 'रुपये ');
+
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.lang = langCode === 'en' ? 'en-IN' : 'hi-IN'; // Fallback to Hindi if not English
+      utterance.rate = 0.9; // Slower for farmer accessibility
+
+      // Try to find a local voice matching the language
+      const voices = window.speechSynthesis.getVoices();
+      const targetVoice = voices.find((v) => 
+        v.lang.includes(utterance.lang) || 
+        v.lang.replace('_', '-').includes(utterance.lang) ||
+        (utterance.lang.startsWith('hi') && (v.lang.includes('hi') || v.name.toLowerCase().includes('hindi'))) ||
+        (utterance.lang.startsWith('en') && (v.lang.includes('en-IN') || v.name.toLowerCase().includes('india')))
+      );
+      if (targetVoice) utterance.voice = targetVoice;
+
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.error("Speech synthesis error:", err);
+    }
+  };
+
+  /**
+   * 1. Fix Speech-to-Text (Microphone Input)
+   */
+  const startListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Your browser does not support voice input. Please use Chrome.");
+      return;
+    }
+
+    // Stop any existing recognition instance
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch (e) {}
+    }
+
+    // Stop any ongoing speech synthesis so mic doesn't pick up the speaker
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+
+      recognition.lang = currentLang === 'en' ? 'en-IN' : 'hi-IN'; // Fallback to Hindi if not English
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        if (event.results && event.results[0] && event.results[0][0]) {
+          const transcript = event.results[0][0].transcript;
+          if (transcript && transcript.trim()) {
+            setInputText(transcript);
+            handleSendMessage(transcript); // Send to AI
+          }
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech error:", event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.error("Failed to start speech recognition:", err);
+      setIsListening(false);
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+    }
+    setIsListening(false);
+  };
+
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
 
   // Cleanup speech recognition and timers on modal close/unmount
   useEffect(() => {
     if (!isOpen) {
-      if (speechDebounceRef.current) clearTimeout(speechDebounceRef.current);
       stopListening();
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
     }
-  }, [isOpen, stopListening]);
+  }, [isOpen]);
 
   const hasAutoStartedRef = useRef(false);
 
@@ -119,7 +231,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
     if (!isOpen) {
       hasAutoStartedRef.current = false;
     }
-  }, [isOpen, autoStart, startListening]);
+  }, [isOpen, autoStart]);
 
   /**
    * Multi-Lingual Gemini AI Powered Farmer Assistant Engine
@@ -153,7 +265,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
         ...prev,
         { sender: 'bot', text: reply, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
       ]);
-      speak(reply, currentLang);
+      speakText(reply, currentLang);
     } catch (error) {
       console.warn('[VoiceAssistant] API call failed, using intelligent offline response:', error);
       const lower = query.toLowerCase();
@@ -212,7 +324,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
         ...prev,
         { sender: 'bot', text: fallbackReply, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
       ]);
-      speak(fallbackReply, currentLang);
+      speakText(fallbackReply, currentLang);
     } finally {
       setIsLoading(false);
     }
@@ -279,6 +391,7 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
               </div>
               <button
                 onClick={() => {
+                  stopListening();
                   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
                     window.speechSynthesis.cancel();
                   }
@@ -314,11 +427,11 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                       {m.sender === 'bot' && (
                         <button
                           type="button"
-                          onClick={() => speak(m.text, currentLang)}
+                          onClick={() => speakText(m.text, currentLang)}
                           title="दोबारा सुनें (Listen again)"
                           className="text-forest hover:text-forest-light flex items-center gap-1 text-[10px] font-bold"
                         >
-                          <Volume2 className="w-3 h-3" />
+                          <Volume2 className="w-3.5 h-3.5" />
                           <span>सुनें</span>
                         </button>
                       )}
@@ -350,7 +463,28 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
               <div ref={messagesEndRef} />
             </div>
 
-            {/* 3. Wire Up the "Suggested Prompts" (Pills) */}
+            {/* Visual Feedback for Listening State */}
+            {isListening && (
+              <div className="px-3.5 py-2 bg-red-50 border-t border-red-200 flex items-center justify-between text-xs text-red-700 animate-pulse font-semibold">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
+                  <span>
+                    {currentLang === 'en'
+                      ? '🎙️ Listening... Speak your question now'
+                      : '🎙️ आवाज़ सुन रहा हूँ... कृपया बोलिए'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={stopListening}
+                  className="text-[10px] bg-red-200 hover:bg-red-300 text-red-900 px-2 py-0.5 rounded font-bold transition-colors"
+                >
+                  {currentLang === 'en' ? 'Stop' : 'रोकें'}
+                </button>
+              </div>
+            )}
+
+            {/* Suggested Prompts (Pills) */}
             <div className="px-3 py-2 bg-white border-t border-slate-100 flex gap-1.5 overflow-x-auto">
               {sampleFarmerQuestions.map((q, i) => (
                 <button
@@ -369,33 +503,27 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
             {/* Voice Input & Glowing Mic Controller */}
             <div className="p-3 bg-white border-t border-slate-200 flex items-center gap-2">
               
-              {/* Glowing / Pulsing Mic Button */}
+              {/* Glowing / Pulsing Mic Button with Visual Feedback */}
               <div className="relative">
                 {isListening && (
-                  <span className="absolute -inset-1 rounded-full bg-red-400 animate-ping opacity-75"></span>
+                  <span className="absolute -inset-1.5 rounded-full bg-red-500 animate-ping opacity-75 pointer-events-none" />
                 )}
                 <button
                   type="button"
-                  onClick={() => {
-                    if (isListening) {
-                      if (speechDebounceRef.current) clearTimeout(speechDebounceRef.current);
-                      stopListening();
-                      if (inputText.trim()) {
-                        handleSendMessage(inputText);
-                        setInputText('');
-                      }
-                    } else {
-                      startListening();
-                    }
-                  }}
-                  className={`relative p-3.5 rounded-full transition-all flex items-center justify-center shadow-md ${
+                  onClick={toggleListening}
+                  className={`relative p-3.5 rounded-full transition-all flex items-center justify-center shadow-lg active:scale-95 ${
                     isListening
-                      ? 'bg-red-600 text-white ring-4 ring-red-200 animate-pulse'
+                      ? 'bg-red-600 text-white ring-4 ring-red-300 animate-pulse shadow-red-500/50'
                       : 'bg-forest text-white hover:bg-forest-light'
                   }`}
-                  title={isListening ? 'माइक चालू है... रोकने या भेजने के लिए दबाएं' : 'बोलने के लिए माइक दबाएं'}
+                  title={isListening ? 'माइक चालू है... रोकने के लिए दबाएं' : 'बोलने के लिए माइक दबाएं'}
+                  aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
                 >
-                  {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                  {isListening ? (
+                    <MicOff className="w-5 h-5 text-white animate-pulse" />
+                  ) : (
+                    <Mic className="w-5 h-5 text-white" />
+                  )}
                 </button>
               </div>
 
@@ -410,7 +538,11 @@ export const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({
                   }
                 }}
                 placeholder={isListening ? activePlaceholder.listening : activePlaceholder.idle}
-                className="flex-1 bg-soil-100 border border-slate-200 text-slate-900 font-semibold text-xs rounded-2xl px-3.5 py-3 focus:outline-none focus:ring-2 focus:ring-forest"
+                className={`flex-1 bg-soil-100 border text-slate-900 font-semibold text-xs rounded-2xl px-3.5 py-3 focus:outline-none transition-all ${
+                  isListening 
+                    ? 'border-red-400 ring-2 ring-red-300 placeholder-red-600 font-bold' 
+                    : 'border-slate-200 focus:ring-2 focus:ring-forest'
+                }`}
               />
 
               <button

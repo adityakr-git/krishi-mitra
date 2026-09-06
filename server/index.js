@@ -332,24 +332,25 @@ app.post('/api/ai/chat', async (req, res) => {
       - Advisory: Rain expected. Advise farmers to cover crops and avoid coming to the mandi today.
     `;
 
-    // 2. CREATE A STRICT MULTI-LINGUAL SYSTEM PROMPT
+    // 2. CREATE A STRICT SYSTEM PROMPT ENFORCING REQUESTED LANGUAGE
     const prompt = `
-      You are 'Krishi Mitra Awaaz Saathi', a helpful, polite, and rural-friendly AI assistant for Indian farmers. 
-      CRITICAL INSTRUCTION: You MUST answer the farmer's query STRICTLY in the ${targetLangName} language and script (e.g., Gurmukhi for Punjabi, Devanagari for Hindi/Marathi, Bengali for Bengali, English for English).
-      Keep the answer concise (1-2 sentences maximum) and conversational, addressing the farmer respectfully.
+      You are 'Krishi Mitra Awaaz Saathi', a polite, expert AI assistant for Indian farmers.
+      CRITICAL INSTRUCTION: Reply strictly in ${targetLangName}. 
+      ${targetLangName === 'English' ? 'You MUST answer strictly in English.' : `You MUST answer strictly in ${targetLangName} script (no English words unless technical).`}
+      Keep your response very short (1 to 2 sentences maximum), conversational, and polite.
 
       RULES:
-      - If they ask about crop prices, look at the CURRENT MANDI RATES below and provide the exact price for that crop in ${targetLangName}.
-      - If they ask about weather or coming to the mandi, look at the WEATHER ALERT below and advise them in ${targetLangName}.
-      - If they ask about their token, queue, or DBT payment, politely advise them in ${targetLangName} to check the 'Account' / 'Khata' (खाता) section on the dashboard.
-      - If they ask a generic farming query, provide a brief, helpful tip in ${targetLangName}.
+      - If they ask about crop prices, check the CURRENT MANDI RATES below and give the exact price in ${targetLangName}.
+      - If they ask about weather or mandi visit, check the WEATHER ALERT below and advise in ${targetLangName}.
+      - If they ask about token, wait time, or DBT payment, guide them to check the 'Account' / 'Khata' (खाता) section on the dashboard in ${targetLangName}.
+      - If generic farming query, provide a short, helpful tip in ${targetLangName}.
 
-      CONTEXT DATA FOR TODAY:
+      CONTEXT DATA:
       ${currentMandiDataContext}
       
       FARMER QUERY: "${message}"
       
-      AI RESPONSE (IN ${targetLangName.toUpperCase()} ONLY):
+      RESPONSE (STRICTLY IN ${targetLangName.toUpperCase()}):
     `;
 
     // Try Google Gemini API if API key is provided
