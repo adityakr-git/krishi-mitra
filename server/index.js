@@ -257,7 +257,7 @@ app.get('/api/bookings', async (req, res) => {
   }
 });
 
-// 8. Gemini AI Assistant Chat API
+// 8. Gemini AI Assistant Chat API (Context-Aware Mandi & Weather Data)
 app.post('/api/ai/chat', async (req, res) => {
   try {
     const { message } = req.body;
@@ -266,21 +266,44 @@ app.post('/api/ai/chat', async (req, res) => {
       return res.status(400).json({ success: false, error: "कृपया अपना प्रश्न लिखें।" });
     }
 
+    // 1. INJECT REAL PLATFORM DATA AS CONTEXT
+    const currentMandiDataContext = `
+      CURRENT MANDI RATES (MSP):
+      - Wheat (गेहूं/Kanak): ₹2,275 per quintal
+      - Mustard (सरसों): ₹5,650 per quintal
+      - Gram (चना): ₹5,440 per quintal
+      - Barley (जौ): ₹1,850 per quintal
+      - Bajra (बाजरा): ₹2,500 per quintal
+
+      WEATHER ALERT:
+      - Current Weather: 26°C, Light Rain (हल्की वर्षा), 88% Humidity.
+      - Advisory: Rain expected. Advise farmers to cover crops and avoid coming to the mandi today.
+    `;
+
+    // 2. CREATE A STRICT SYSTEM PROMPT
+    const prompt = `
+      You are 'Krishi Mitra Awaaz Saathi', a helpful and polite AI assistant for Indian farmers. 
+      Answer the farmer's query strictly in simple, easy-to-understand Hindi.
+      Keep the answer short (1-2 sentences max) and conversational (address them as 'किसान भाई').
+
+      RULES:
+      - If they ask about crop prices, look at the CURRENT MANDI RATES below and give the exact price for that specific crop.
+      - If they ask about weather or if they should come to the mandi, look at the WEATHER ALERT below and advise accordingly.
+      - If they ask about their token, queue, or money, politely say: "किसान भाई, अपने टोकन और भुगतान की ताज़ा जानकारी के लिए कृपया 'खाता' (Account) सेक्शन चेक करें।"
+      - If they ask a generic farming question, give a helpful, short tip.
+
+      CONTEXT DATA FOR TODAY:
+      ${currentMandiDataContext}
+      
+      FARMER QUERY: "${message}"
+      
+      AI RESPONSE (IN HINDI):
+    `;
+
     // Try Google Gemini API if API key is provided
     if (genAI) {
       try {
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-        const prompt = `
-          You are 'Krishi Mitra', a helpful and polite AI assistant for Indian farmers. 
-          Answer the following query in simple, easy-to-understand Hindi. 
-          Keep the answer short (2-3 sentences max). 
-          If asked about crop prices, give a generic positive answer mentioning MSP.
-          If asked about token status, advise them to check the 'Khata' (Account) tab.
-          
-          Farmer Query: ${message}
-        `;
-
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
@@ -293,20 +316,26 @@ app.post('/api/ai/chat', async (req, res) => {
       }
     }
 
-    // Intelligent Hindi Fallback Response Engine
+    // Context-Aware Intelligent Hindi Fallback Engine
     const lower = message.toLowerCase();
-    let reply = "नमस्ते किसान भाई! आपकी सेवा में कृषि मित्र हाजिर है। फसल, मंडी भाव या टोकन के बारे में कुछ भी पूछें।";
+    let reply = "नमस्ते किसान भाई! आपकी सेवा में कृषि मित्र आवाज़ साथी हाजिर है। फसल, मंडी भाव, टोकन या मौसम के बारे में पूछें।";
 
-    if (lower.includes('नंबर') || lower.includes('number') || lower.includes('कब आएगा') || lower.includes('बारी') || lower.includes('टोकन') || lower.includes('token') || lower.includes('wait') || lower.includes('कतार')) {
-      reply = "किसान भाई, आपके टोकन की लाइव स्थिति और खरीद प्रगति 'खाता' (History) टैब में उपलब्ध है। वहां आप अपनी कतार देख सकते हैं।";
-    } else if (lower.includes('भाव') || lower.includes('रेट') || lower.includes('rate') || lower.includes('price') || lower.includes('msp') || lower.includes('गेहूं') || lower.includes('wheat')) {
-      reply = "किसान भाई, आज गेहूं का सरकारी एमएसपी ₹2,275 प्रति क्विंटल है और नजदीकी मंडियों में अच्छी खरीद हो रही है।";
-    } else if (lower.includes('सरसों') || lower.includes('mustard')) {
-      reply = "किसान भाई, सरसों का सरकारी समर्थन मूल्य ₹5,650 प्रति क्विंटल है। आप अपनी सूखी और साफ फसल ला सकते हैं।";
-    } else if (lower.includes('पैसे') || lower.includes('रुपये') || lower.includes('खाता') || lower.includes('dbt') || lower.includes('payment')) {
-      reply = "किसान भाई, तौल एवं गुणवत्ता जांच पूरी होते ही राशि सीधे आपके बैंक खाते में DBT द्वारा भेज दी जाएगी।";
-    } else if (lower.includes('मौसम') || lower.includes('weather') || lower.includes('बारिश')) {
-      reply = "किसान भाई, आज मौसम बिल्कुल साफ रहने का अनुमान है। फसल मंडी लाने के लिए आज का दिन अनुकूल है।";
+    if (lower.includes('सरसों') || lower.includes('सरसो') || lower.includes('mustard') || lower.includes('sarson')) {
+      reply = "किसान भाई, आज सरसों का सरकारी एमएसपी भाव ₹5,650 प्रति क्विंटल है।";
+    } else if (lower.includes('चना') || lower.includes('चने') || lower.includes('gram') || lower.includes('chana')) {
+      reply = "किसान भाई, आज चना का सरकारी एमएसपी रेट ₹5,440 प्रति क्विंटल है।";
+    } else if (lower.includes('जौ') || lower.includes('barley') || lower.includes('jau')) {
+      reply = "किसान भाई, आज जौ का सरकारी एमएसपी भाव ₹1,850 प्रति क्विंटल है।";
+    } else if (lower.includes('बाजरा') || lower.includes('बाजरे') || lower.includes('बाजरी') || lower.includes('bajra') || lower.includes('pearl millet')) {
+      reply = "किसान भाई, आज बाजरा का सरकारी एमएसपी रेट ₹2,500 प्रति क्विंटल है।";
+    } else if (lower.includes('गेहूं') || lower.includes('गेहू') || lower.includes('wheat') || lower.includes('kanak')) {
+      reply = "किसान भाई, आज गेहूं का सरकारी समर्थन मूल्य (MSP) ₹2,275 प्रति क्विंटल है।";
+    } else if (lower.includes('भाव') || lower.includes('रेट') || lower.includes('rate') || lower.includes('price') || lower.includes('msp') || lower.includes('समर्थन मूल्य')) {
+      reply = "किसान भाई, आज गेहूं का सरकारी भाव ₹2,275, सरसों ₹5,650, चना ₹5,440, बाजरा ₹2,500 और जौ ₹1,850 प्रति क्विंटल है।";
+    } else if (lower.includes('मौसम') || lower.includes('weather') || lower.includes('बारिश') || lower.includes('rain') || lower.includes('आऊं') || lower.includes('आएं') || lower.includes('छाता')) {
+      reply = "किसान भाई, आज 26°C तापमान के साथ हल्की वर्षा और 88% नमी की संभावना है। कृपया अपनी फसल ढककर रखें और आज मंडी आने से बचें।";
+    } else if (lower.includes('नंबर') || lower.includes('token') || lower.includes('टोकन') || lower.includes('कतार') || lower.includes('बारी') || lower.includes('पैसे') || lower.includes('रुपये') || lower.includes('dbt') || lower.includes('खाता') || lower.includes('payment')) {
+      reply = "किसान भाई, अपने टोकन और भुगतान की ताज़ा जानकारी के लिए कृपया 'खाता' (Account) सेक्शन चेक करें।";
     }
 
     return res.json({ success: true, reply });
